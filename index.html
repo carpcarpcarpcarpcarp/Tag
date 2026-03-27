@@ -198,13 +198,13 @@ canvas { display: block; }
     <div class="section-label">Speed</div>
     <div class="speed-slider-row">
       <label>Player</label>
-      <input type="range" min="0.1" max="10" step="0.1" value="3" id="player-speed-slider" oninput="setPlayerSpeed(this.value)">
-      <span class="speed-val" id="player-speed-val">3.0</span>
+      <input type="range" min="0.1" max="10" step="0.1" value="1.5" id="player-speed-slider" oninput="setPlayerSpeed(this.value)">
+      <span class="speed-val" id="player-speed-val">1.5</span>
     </div>
     <div class="speed-slider-row">
       <label>AI</label>
-      <input type="range" min="1" max="10" step="0.1" value="1.1" id="ai-speed-slider" oninput="setAISpeed(this.value)">
-      <span class="speed-val" id="ai-speed-val">1.1</span>
+      <input type="range" min="0.1" max="10" step="0.1" value="1" id="ai-speed-slider" oninput="setAISpeed(this.value)">
+      <span class="speed-val" id="ai-speed-val">1.0</span>
     </div>
     <div style="height:8px"></div>
     <div class="section-label">Orbs</div>
@@ -300,8 +300,8 @@ let numAI = 3;
 let timeLimit = 120; // seconds, 0 = unlimited
 let gameMode = 'classic'; // 'classic' or 'elimination'
 let lavaEnabled = true;
-let playerSpeedSetting = 3; // default player speed
-let aiSpeedSetting = 1.1;   // default AI speed
+let playerSpeedSetting = 1.5; // default player speed
+let aiSpeedSetting = 1.0;    // default AI speed
 let entities = [];
 let obstacles, tunnels, lavaZones, orbs, particles, bullets, floatingTexts;
 let itIndex, gameRunning, tagCooldown;
