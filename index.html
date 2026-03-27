@@ -102,6 +102,16 @@ canvas { display: block; }
 .legend-item.disabled { opacity: 0.25; text-decoration: line-through; }
 .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
 .legend-cb { width: 13px; height: 13px; accent-color: #00d4ff; cursor: pointer; margin: 0; }
+.speed-slider-row {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 8px;
+}
+.speed-slider-row label { color: #aaa; font-size: 13px; min-width: 90px; }
+.speed-slider-row input[type="range"] {
+  flex: 1; accent-color: #00d4ff; cursor: pointer; height: 6px;
+}
+.speed-slider-row .speed-val {
+  color: #00d4ff; font-weight: bold; font-size: 14px; min-width: 30px; text-align: right;
+}
 .subtitle { color: #667; font-size: 14px; margin-bottom: 12px; }
 .section-label {
   color: #556; font-size: 11px; margin-bottom: 8px; text-transform: uppercase;
@@ -185,6 +195,18 @@ canvas { display: block; }
     <div class="mode-select" style="margin-bottom:12px">
       <button onclick="toggleLava()" id="lava-toggle" class="selected">Lava: ON</button>
     </div>
+    <div class="section-label">Speed</div>
+    <div class="speed-slider-row">
+      <label>Player</label>
+      <input type="range" min="0.1" max="10" step="0.1" value="3" id="player-speed-slider" oninput="setPlayerSpeed(this.value)">
+      <span class="speed-val" id="player-speed-val">3.0</span>
+    </div>
+    <div class="speed-slider-row">
+      <label>AI</label>
+      <input type="range" min="1" max="10" step="0.1" value="1.1" id="ai-speed-slider" oninput="setAISpeed(this.value)">
+      <span class="speed-val" id="ai-speed-val">1.1</span>
+    </div>
+    <div style="height:8px"></div>
     <div class="section-label">Orbs</div>
     <div class="legend" id="orb-toggles"></div>
   </div>
@@ -278,6 +300,8 @@ let numAI = 3;
 let timeLimit = 120; // seconds, 0 = unlimited
 let gameMode = 'classic'; // 'classic' or 'elimination'
 let lavaEnabled = true;
+let playerSpeedSetting = 3; // default player speed
+let aiSpeedSetting = 1.1;   // default AI speed
 let entities = [];
 let obstacles, tunnels, lavaZones, orbs, particles, bullets, floatingTexts;
 let itIndex, gameRunning, tagCooldown;
@@ -361,6 +385,16 @@ function toggleLava() {
   btn.classList.toggle('selected', lavaEnabled);
 }
 
+function setPlayerSpeed(val) {
+  playerSpeedSetting = parseFloat(val);
+  document.getElementById('player-speed-val').textContent = playerSpeedSetting.toFixed(1);
+}
+
+function setAISpeed(val) {
+  aiSpeedSetting = parseFloat(val);
+  document.getElementById('ai-speed-val').textContent = aiSpeedSetting.toFixed(1);
+}
+
 function toggleOrb(index) {
   ORB_TYPES[index].enabled = !ORB_TYPES[index].enabled;
   buildOrbToggles();
@@ -424,7 +458,7 @@ function makeEntity(index, isHuman, aiNumber) {
     x: pos.x + (Math.random() - 0.5) * jitter,
     y: pos.y + (Math.random() - 0.5) * jitter,
     r: 18, color, name,
-    vx: 0, vy: 0, speed: isHuman ? 1.16 : 1.06, // AI is slower
+    vx: 0, vy: 0, speed: isHuman ? playerSpeedSetting : aiSpeedSetting,
     score: 0,
     facingX: 0, facingY: 1,
     effects: {}, trail: [],
