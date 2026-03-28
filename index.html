@@ -192,8 +192,12 @@ canvas { display: block; }
 
   <div class="settings-card">
     <div class="section-label">Options</div>
-    <div class="mode-select" style="margin-bottom:12px">
+    <div class="mode-select" style="margin-bottom:8px">
       <button onclick="toggleLava()" id="lava-toggle" class="selected">Lava: ON</button>
+      <button onclick="toggleMeteors()" id="meteor-toggle">Meteors: OFF</button>
+    </div>
+    <div style="color:#777;font-size:11px;margin-bottom:10px;text-align:center" id="meteor-desc">
+      Meteors rain down on random players. Getting hit eliminates you from the round. Watch for the red warning zone and get out fast!
     </div>
     <div class="section-label">Speed</div>
     <div class="speed-slider-row">
@@ -300,10 +304,12 @@ let numAI = 3;
 let timeLimit = 120; // seconds, 0 = unlimited
 let gameMode = 'classic'; // 'classic' or 'elimination'
 let lavaEnabled = true;
-let playerSpeedSetting = 1.5; // default player speed
-let aiSpeedSetting = 1.0;    // default AI speed
+let meteorsEnabled = false;
+let meteorTimer = 0; // ms until next meteor
+let playerSpeedSetting = 1.5;
+let aiSpeedSetting = 1.0;
 let entities = [];
-let obstacles, tunnels, lavaZones, orbs, particles, bullets, floatingTexts;
+let obstacles, tunnels, lavaZones, orbs, particles, bullets, floatingTexts, meteors;
 let itIndex, gameRunning, tagCooldown;
 let gameTimer; // remaining time in ms
 let elimTimer; // elimination countdown in ms
@@ -367,14 +373,20 @@ function selectMode(m) {
   const classicTime = document.getElementById('time-select-classic');
   const elimTime = document.getElementById('time-select-elim');
   const timeLbl = document.getElementById('time-label');
+  const lavaBtn = document.getElementById('lava-toggle');
+  const meteorDesc = document.getElementById('meteor-desc');
   if (m === 'elimination') {
     classicTime.style.display = 'none';
     elimTime.style.display = '';
     timeLbl.textContent = 'Round Time';
+    lavaBtn.style.display = 'none';
+    meteorDesc.textContent = 'Meteors rain down on random players. Getting hit eliminates you from the round. Watch for the red warning zone and get out fast!';
   } else {
     classicTime.style.display = '';
     elimTime.style.display = 'none';
     timeLbl.textContent = 'Time Limit';
+    lavaBtn.style.display = '';
+    meteorDesc.textContent = 'Meteors rain down on random players. Getting hit costs 50% of your score. Watch for the red warning zone and get out fast!';
   }
 }
 
@@ -383,6 +395,13 @@ function toggleLava() {
   const btn = document.getElementById('lava-toggle');
   btn.textContent = 'Lava: ' + (lavaEnabled ? 'ON' : 'OFF');
   btn.classList.toggle('selected', lavaEnabled);
+}
+
+function toggleMeteors() {
+  meteorsEnabled = !meteorsEnabled;
+  const btn = document.getElementById('meteor-toggle');
+  btn.textContent = 'Meteors: ' + (meteorsEnabled ? 'ON' : 'OFF');
+  btn.classList.toggle('selected', meteorsEnabled);
 }
 
 function setPlayerSpeed(val) {
@@ -729,6 +748,13 @@ function spawnOrb() {
   let available = ORB_TYPES.filter(t => t.enabled);
   if (gameMode === 'elimination') available = available.filter(t => t.effect !== 'double');
   if (available.length === 0) return; // no orbs enabled
+  // 25% more freeze orbs when meteors are on
+  if (meteorsEnabled) {
+    const freezeOrb = available.find(t => t.effect === 'freeze');
+    if (freezeOrb && Math.random() < 0.25) {
+      available = [freezeOrb]; // force a freeze orb this spawn
+    }
+  }
   const type = available[Math.floor(Math.random() * available.length)];
   for (let tries = 0; tries < 50; tries++) {
     const x = 40 + Math.random() * (W - 80);
@@ -764,11 +790,14 @@ function init() {
   for (const t of tunnels) {
     for (const w of t.walls) obstacles.push(w);
   }
-  lavaZones = lavaEnabled ? generateLava() : [];
+  // No lava in elimination mode
+  lavaZones = (lavaEnabled && gameMode !== 'elimination') ? generateLava() : [];
   orbs = [];
   particles = [];
   bullets = [];
   floatingTexts = [];
+  meteors = [];
+  meteorTimer = 5000; // first meteor after 5 seconds
   itIndex = Math.floor(Math.random() * total);
   tagCooldown = 1500;
   if (gameMode === 'elimination') {
@@ -830,15 +859,41 @@ function bulletHitsRect(bx, by, br, ox, oy, ow, oh) {
   return Math.sqrt(dx*dx + dy*dy) < br;
 }
 
+// Check if entity is near any tunnel (within tunnel wall zone, not just the gap)
+function isNearTunnel(ent) {
+  for (const t of tunnels) {
+    if (t.horizontal) {
+      const halfLen = t.walls[0].w / 2;
+      const totalH = t.gap / 2 + t.walls[0].h;
+      if (Math.abs(ent.x - t.cx) < halfLen + ent.r && Math.abs(ent.y - t.cy) < totalH + ent.r) return true;
+    } else {
+      const halfLen = t.walls[0].h / 2;
+      const totalW = t.gap / 2 + t.walls[0].w;
+      if (Math.abs(ent.y - t.cy) < halfLen + ent.r && Math.abs(ent.x - t.cx) < totalW + ent.r) return true;
+    }
+  }
+  return false;
+}
+
 function moveEntity(ent, dx, dy) {
   const dtScale = dt / 16.67; // normalize to 60fps
   let spd = ent.speed;
-  if (ent.effects.speed) spd *= 1.6;
+
+  // Disable speed boost near tunnels
+  const nearTunnel = isNearTunnel(ent);
+  if (ent.effects.speed && !nearTunnel) spd *= 1.6;
   if (ent.effects.shrink) spd *= 1.15;
 
   // Smoothly interpolate radius instead of snapping
   const targetR = ent.effects.shrink ? 11 : 18;
   ent.r += (targetR - ent.r) * Math.min(0.15 * dtScale, 0.5);
+
+  // If non-shrinked and inside a tunnel, push to nearest opening
+  if (!ent.effects.shrink && ent.r > 13 && isInsideTunnel(ent)) {
+    pushOutOfTunnel(ent);
+    burst(ent.x, ent.y, '#ff8800', 8);
+    return;
+  }
 
   ent.vx += dx * spd * 0.3 * dtScale;
   ent.vy += dy * spd * 0.3 * dtScale;
@@ -846,17 +901,19 @@ function moveEntity(ent, dx, dy) {
   ent.vx *= damping;
   ent.vy *= damping;
 
-  // Cap velocity — never move more than half the entity's radius per frame
-  // This prevents clipping through thin tunnel walls at high speed
-  const maxStep = ent.r * 0.5;
+  // Sub-step movement to prevent clipping through walls at high speed
   const vel = Math.hypot(ent.vx, ent.vy);
-  if (vel > maxStep) {
-    ent.vx = (ent.vx / vel) * maxStep;
-    ent.vy = (ent.vy / vel) * maxStep;
+  const maxStep = ent.r * 0.4;
+  const steps = vel > maxStep ? Math.ceil(vel / maxStep) : 1;
+  const stepVx = ent.vx / steps;
+  const stepVy = ent.vy / steps;
+  for (let s = 0; s < steps; s++) {
+    ent.x += stepVx;
+    ent.y += stepVy;
+    ent.x = Math.max(ent.r, Math.min(W - ent.r, ent.x));
+    ent.y = Math.max(ent.r, Math.min(H - ent.r, ent.y));
+    for (const o of obstacles) collideRect(ent, o.x, o.y, o.w, o.h);
   }
-
-  ent.x += ent.vx;
-  ent.y += ent.vy;
 
   // Update facing direction when moving
   const moveLen = Math.hypot(ent.vx, ent.vy);
@@ -864,11 +921,6 @@ function moveEntity(ent, dx, dy) {
     ent.facingX = ent.vx / moveLen;
     ent.facingY = ent.vy / moveLen;
   }
-
-  ent.x = Math.max(ent.r, Math.min(W - ent.r, ent.x));
-  ent.y = Math.max(ent.r, Math.min(H - ent.r, ent.y));
-
-  for (const o of obstacles) collideRect(ent, o.x, o.y, o.w, o.h);
 
   ent.trail.push({ x: ent.x, y: ent.y, life: 1 });
   if (ent.trail.length > 12) ent.trail.shift();
@@ -937,6 +989,12 @@ function pointBlocked(ax, ay, r) {
   }
   for (const lz of lavaZones) {
     if (ax > lz.x - r && ax < lz.x + lz.w + r && ay > lz.y - r && ay < lz.y + lz.h + r) return true;
+  }
+  // AI avoids meteor warning zones (97% of the time)
+  if (meteorsEnabled && Math.random() < 0.97) {
+    for (const m of meteors) {
+      if (!m.hit && Math.hypot(ax - m.x, ay - m.y) < m.radius + r) return true;
+    }
   }
   return ax < r || ax > W - r || ay < r || ay > H - r;
 }
@@ -1184,6 +1242,12 @@ function getAIInput(ent) {
     if (!ent.effects.shield) {
       for (const lz of lavaZones) {
         if (ax > lz.x - ent.r && ax < lz.x + lz.w + ent.r && ay > lz.y - ent.r && ay < lz.y + lz.h + ent.r) return true;
+      }
+    }
+    // Avoid meteor zones
+    if (meteorsEnabled && Math.random() < 0.97) {
+      for (const m of meteors) {
+        if (!m.hit && Math.hypot(ax - m.x, ay - m.y) < m.radius + ent.r) return true;
       }
     }
     return ax < ent.r || ax > W - ent.r || ay < ent.r || ay > H - ent.r;
@@ -1609,6 +1673,89 @@ function update() {
     }
   }
 
+  // Meteors
+  if (meteorsEnabled) {
+    meteorTimer -= dt;
+    if (meteorTimer <= 0) {
+      // Spawn a new meteor targeting a random player
+      const target = entities[Math.floor(Math.random() * entities.length)];
+      // Size: between 1/12 and 1/3 of map (use shorter dimension)
+      const minSize = Math.min(W, H) / 16;
+      const maxSize = Math.min(W, H) / 2.5;
+      const radius = minSize + Math.random() * (maxSize - minSize);
+      // Bigger meteors get longer warnings (2.25-3.75 seconds, 25% less than before)
+      const warningTime = 2250 + ((radius - minSize) / (maxSize - minSize)) * 1500;
+      // Target near the player with some offset
+      const offsetX = (Math.random() - 0.5) * radius * 0.5;
+      const offsetY = (Math.random() - 0.5) * radius * 0.5;
+      const mx = Math.max(radius, Math.min(W - radius, target.x + offsetX));
+      const my = Math.max(radius, Math.min(H - radius, target.y + offsetY));
+      meteors.push({
+        x: mx, y: my, radius,
+        warningTime, timer: warningTime,
+        hit: false
+      });
+      meteorTimer = 10000; // next meteor in 10 seconds
+    }
+
+    for (let i = meteors.length - 1; i >= 0; i--) {
+      const m = meteors[i];
+      m.timer -= dt;
+
+      if (m.timer <= 0 && !m.hit) {
+        // IMPACT
+        m.hit = true;
+        if (gameMode === 'elimination') {
+          // Elimination: kill hit players
+          const hitList = [];
+          for (const ent of entities) {
+            const d = Math.hypot(ent.x - m.x, ent.y - m.y);
+            if (d < m.radius) {
+              hitList.push(ent);
+              burst(ent.x, ent.y, '#ff6600', 15);
+              floatingTexts.push({ x: ent.x, y: ent.y - 20, text: 'ELIMINATED', color: '#ff4400', life: 1.5 });
+            }
+          }
+          for (const ent of hitList) {
+            if (entities.length <= 1) break;
+            showMessage(ent.name + ' destroyed!', 1200);
+            const idx = entities.indexOf(ent);
+            if (idx === -1) continue;
+            entities.splice(idx, 1);
+            for (let j = 0; j < entities.length; j++) entities[j].index = j;
+            if (itIndex >= entities.length) itIndex = 0;
+            if (entities.length <= 1) {
+              endGame(entities[0] || null);
+              return;
+            }
+          }
+          if (hitList.length > 0) buildHUD();
+        } else {
+          // Classic: lose 50% score
+          for (const ent of entities) {
+            const d = Math.hypot(ent.x - m.x, ent.y - m.y);
+            if (d < m.radius) {
+              const lost = Math.floor(ent.score * 0.5);
+              ent.score *= 0.5;
+              burst(ent.x, ent.y, '#ff6600', 15);
+              if (lost > 0) {
+                floatingTexts.push({ x: ent.x, y: ent.y - 20, text: '-' + lost, color: '#ff6600', life: 1.0 });
+              }
+            }
+          }
+        }
+        // Impact particles
+        burst(m.x, m.y, '#ff4400', 30);
+        burst(m.x, m.y, '#ffaa00', 20);
+      }
+
+      // Remove after impact animation (500ms after hit)
+      if (m.hit && m.timer < -500) {
+        meteors.splice(i, 1);
+      }
+    }
+  }
+
   // Floating texts
   for (let i = floatingTexts.length - 1; i >= 0; i--) {
     const ft = floatingTexts[i];
@@ -1723,6 +1870,60 @@ function draw() {
     ctx.strokeStyle = 'rgba(255, 80, 0, 0.12)';
     ctx.lineWidth = 6;
     ctx.strokeRect(lz.x - 2, lz.y - 2, lz.w + 4, lz.h + 4);
+  }
+
+  // Meteor warnings and impacts
+  for (const m of meteors) {
+    const progress = 1 - (m.timer / m.warningTime); // 0 = just spawned, 1 = impact
+    if (!m.hit) {
+      // Warning circle — gets more opaque and solid as impact approaches
+      const pulseRate = 3 + progress * 8; // pulse faster near impact
+      const pulse = 0.5 + Math.sin(Date.now() / 1000 * pulseRate) * 0.3;
+      const alpha = 0.1 + progress * 0.35;
+
+      // Outer fill
+      ctx.fillStyle = `rgba(255, 30, 0, ${alpha * pulse * 0.5})`;
+      ctx.beginPath(); ctx.arc(m.x, m.y, m.radius, 0, Math.PI * 2); ctx.fill();
+
+      // Ring
+      ctx.strokeStyle = `rgba(255, 50, 0, ${0.3 + progress * 0.5})`;
+      ctx.lineWidth = 2 + progress * 3;
+      ctx.beginPath(); ctx.arc(m.x, m.y, m.radius, 0, Math.PI * 2); ctx.stroke();
+
+      // Inner ring closing in
+      const innerR = m.radius * (1 - progress);
+      if (innerR > 5) {
+        ctx.strokeStyle = `rgba(255, 100, 0, ${0.2 + progress * 0.4})`;
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([6, 6]);
+        ctx.beginPath(); ctx.arc(m.x, m.y, innerR, 0, Math.PI * 2); ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      // Crosshair
+      ctx.strokeStyle = `rgba(255, 80, 0, ${0.2 + progress * 0.3})`;
+      ctx.lineWidth = 1;
+      const cr = m.radius * 0.3;
+      ctx.beginPath(); ctx.moveTo(m.x - cr, m.y); ctx.lineTo(m.x + cr, m.y); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(m.x, m.y - cr); ctx.lineTo(m.x, m.y + cr); ctx.stroke();
+
+      // Timer text
+      const secsLeft = Math.max(0, m.timer / 1000).toFixed(1);
+      ctx.fillStyle = `rgba(255, 80, 0, ${0.5 + progress * 0.5})`;
+      ctx.font = 'bold 16px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(secsLeft + 's', m.x, m.y);
+    } else {
+      // Impact flash — fades out
+      const fadeProgress = Math.min(1, -m.timer / 500);
+      const flashAlpha = Math.max(0, 1 - fadeProgress);
+      ctx.fillStyle = `rgba(255, 100, 0, ${flashAlpha * 0.4})`;
+      ctx.beginPath(); ctx.arc(m.x, m.y, m.radius * (1 + fadeProgress * 0.3), 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = `rgba(255, 200, 50, ${flashAlpha * 0.6})`;
+      ctx.lineWidth = 4 * flashAlpha;
+      ctx.beginPath(); ctx.arc(m.x, m.y, m.radius * (0.5 + fadeProgress * 0.8), 0, Math.PI * 2); ctx.stroke();
+    }
   }
 
   // Obstacles
