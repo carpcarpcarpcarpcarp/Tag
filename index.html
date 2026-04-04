@@ -1,0 +1,2898 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Tag!</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #1a1a2e; overflow: hidden; font-family: 'Segoe UI', sans-serif; }
+canvas { display: block; }
+#ui {
+  position: absolute; top: 10px; left: 10px; color: #fff;
+  font-size: 13px; pointer-events: none; user-select: none;
+  display: flex; gap: 10px; flex-wrap: wrap;
+}
+#timer-display {
+  position: absolute; top: 10px; right: 20px; color: #fff;
+  font-size: 28px; font-weight: bold; pointer-events: none; user-select: none;
+  text-shadow: 0 0 10px rgba(255,255,255,0.3);
+}
+.player-hud {
+  background: rgba(0,0,0,0.5); border-radius: 8px; padding: 8px 12px;
+  min-width: 130px; border: 2px solid transparent;
+}
+.player-hud.is-it { border-color: #ff4444; }
+.player-hud .name { font-weight: bold; font-size: 14px; margin-bottom: 4px; }
+.player-hud .score { margin-bottom: 3px; }
+.player-hud .effect-text { font-size: 11px; color: #ffd700; margin-top: 3px; min-height: 14px; }
+#message {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  color: #fff; font-size: 48px; font-weight: bold; pointer-events: none;
+  text-shadow: 0 0 20px rgba(255,255,255,0.5); opacity: 0; transition: opacity 0.3s;
+}
+#start-screen {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  background: radial-gradient(ellipse at 50% 30%, #1a1a3e 0%, #0a0a1a 60%, #050510 100%);
+  display: flex; flex-direction: column;
+  align-items: center; color: #fff; z-index: 10;
+  overflow-y: auto; padding: 30px 20px;
+}
+#start-screen h1 {
+  font-size: 80px; margin-bottom: 6px; color: #00d4ff;
+  text-shadow: 0 0 40px #00d4ff, 0 0 80px rgba(0,212,255,0.3), 0 4px 0 #0088aa;
+  letter-spacing: 12px;
+  animation: titlePulse 3s ease-in-out infinite;
+}
+@keyframes titlePulse {
+  0%, 100% { text-shadow: 0 0 40px #00d4ff, 0 0 80px rgba(0,212,255,0.3), 0 4px 0 #0088aa; }
+  50% { text-shadow: 0 0 60px #00d4ff, 0 0 120px rgba(0,212,255,0.5), 0 4px 0 #0088aa; }
+}
+#start-screen .tagline {
+  color: #667; font-size: 14px; margin-bottom: 24px; letter-spacing: 3px; text-transform: uppercase;
+}
+.settings-card {
+  background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 12px; padding: 16px 24px; margin-bottom: 14px;
+  width: 100%; max-width: 660px;
+}
+.settings-card .section-label { margin-bottom: 10px; }
+.player-select { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.mode-select { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.mode-select button, .player-select button, .time-select button, .ai-select button {
+  padding: 10px 22px; font-size: 16px; background: rgba(255,255,255,0.06); color: #ccc;
+  border: 2px solid rgba(255,255,255,0.12); border-radius: 8px; cursor: pointer; font-weight: bold;
+  transition: all 0.15s ease;
+}
+.mode-select button:hover, .player-select button:hover, .time-select button:hover, .ai-select button:hover {
+  transform: scale(1.05); border-color: #00d4ff; color: #fff; background: rgba(0,212,255,0.1);
+}
+.mode-select button.selected, .player-select button.selected, .time-select button.selected, .ai-select button.selected {
+  background: linear-gradient(135deg, #00d4ff, #0099cc); color: #fff; border-color: #00d4ff;
+  box-shadow: 0 0 12px rgba(0,212,255,0.3);
+}
+.ai-select { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.ai-select button { padding: 8px 16px; font-size: 14px; }
+.ai-select button:disabled { opacity: 0.2; cursor: not-allowed; transform: none !important; border-color: rgba(255,255,255,0.06) !important; }
+.time-select { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.time-select button { padding: 8px 16px; font-size: 14px; }
+.controls-info {
+  font-size: 13px; line-height: 1.8; text-align: left;
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px 24px;
+}
+.controls-info .ctrl-item { display: flex; gap: 8px; }
+.controls-info .ctrl-label { font-weight: bold; min-width: 30px; }
+.controls-info .ctrl-keys { color: #999; }
+.controls-info .ctrl-keys span { color: #ffd700; font-weight: bold; }
+#play-btn {
+  padding: 16px 60px; font-size: 24px; background: linear-gradient(135deg, #00d4ff, #0088cc);
+  color: #fff; border: none; border-radius: 12px; cursor: pointer; font-weight: bold;
+  letter-spacing: 3px; text-transform: uppercase;
+  transition: transform 0.15s, box-shadow 0.2s;
+  box-shadow: 0 4px 20px rgba(0,212,255,0.3);
+  margin-top: 10px;
+}
+#play-btn:hover { transform: scale(1.08); box-shadow: 0 6px 30px rgba(0,212,255,0.5); }
+.legend { display: flex; gap: 8px; font-size: 12px; flex-wrap: wrap; justify-content: center; }
+.legend-item {
+  display: flex; align-items: center; gap: 4px; cursor: pointer; user-select: none;
+  background: rgba(255,255,255,0.03); padding: 4px 8px; border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.06); transition: opacity 0.15s;
+}
+.legend-item:hover { opacity: 0.8; border-color: rgba(255,255,255,0.15); }
+.legend-item.disabled { opacity: 0.25; text-decoration: line-through; }
+.legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.legend-cb { width: 13px; height: 13px; accent-color: #00d4ff; cursor: pointer; margin: 0; }
+.speed-slider-row {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 8px;
+}
+.speed-slider-row label { color: #aaa; font-size: 13px; min-width: 90px; }
+.speed-slider-row input[type="range"] {
+  flex: 1; accent-color: #00d4ff; cursor: pointer; height: 6px;
+}
+.speed-slider-row .speed-val {
+  color: #00d4ff; font-weight: bold; font-size: 14px; min-width: 30px; text-align: right;
+}
+.subtitle { color: #667; font-size: 14px; margin-bottom: 12px; }
+.section-label {
+  color: #556; font-size: 11px; margin-bottom: 8px; text-transform: uppercase;
+  letter-spacing: 2px; font-weight: bold;
+}
+#game-over-screen {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  background: radial-gradient(ellipse at 50% 40%, rgba(20,20,40,0.97) 0%, rgba(5,5,15,0.98) 100%);
+  display: none; flex-direction: column;
+  align-items: center; justify-content: center; color: #fff; z-index: 10;
+}
+#game-over-screen h1 {
+  font-size: 56px; margin-bottom: 20px; color: #ffd700;
+  text-shadow: 0 0 40px #ffd700, 0 0 80px rgba(255,215,0,0.3);
+}
+#final-scores {
+  font-size: 22px; line-height: 2; margin-bottom: 30px; text-align: center;
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px; padding: 20px 40px;
+}
+#game-over-screen button {
+  padding: 16px 50px; font-size: 22px; background: linear-gradient(135deg, #00d4ff, #0088cc);
+  color: #fff; border: none; border-radius: 12px; cursor: pointer; font-weight: bold;
+  letter-spacing: 2px; transition: transform 0.15s, box-shadow 0.2s;
+  box-shadow: 0 4px 20px rgba(0,212,255,0.3);
+}
+#game-over-screen button:hover { transform: scale(1.08); box-shadow: 0 6px 30px rgba(0,212,255,0.5); }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="ui"></div>
+<div id="timer-display"></div>
+<div id="message"></div>
+<div id="start-screen">
+  <h1>TAG!</h1>
+  <div class="tagline">Chase. Evade. Survive.</div>
+
+  <div class="settings-card">
+    <div class="section-label">Game Mode</div>
+    <div class="mode-select">
+      <button onclick="selectMode('classic')" id="mode-classic" class="selected">Classic</button>
+      <button onclick="selectMode('elimination')" id="mode-elimination">Elimination</button>
+      <button onclick="selectMode('infect')" id="mode-infect">Infection/Manhunt</button>
+    </div>
+  </div>
+
+  <div class="settings-card">
+    <div class="section-label">Players</div>
+    <div class="player-select">
+      <button onclick="selectPlayers(1)" id="sel-1">1 Player</button>
+      <button onclick="selectPlayers(2)" id="sel-2">2 Players</button>
+      <button onclick="selectPlayers(3)" id="sel-3">3 Players</button>
+      <button onclick="selectPlayers(4)" id="sel-4">4 Players</button>
+    </div>
+    <div style="height:10px"></div>
+    <div class="section-label">AI Opponents</div>
+    <div class="ai-select" id="ai-select"></div>
+  </div>
+
+  <div class="settings-card">
+    <div class="section-label" id="time-label">Time Limit</div>
+    <div class="time-select" id="time-select-classic">
+      <button onclick="selectTime(60)" id="time-60">1 min</button>
+      <button onclick="selectTime(120)" id="time-120">2 min</button>
+      <button onclick="selectTime(180)" id="time-180">3 min</button>
+      <button onclick="selectTime(300)" id="time-300">5 min</button>
+      <button onclick="selectTime(600)" id="time-600">10 min</button>
+      <button onclick="selectTime(0)" id="time-0">Unlimited</button>
+    </div>
+    <div class="time-select" id="time-select-elim" style="display:none">
+      <button onclick="selectElimTime(30)" id="elim-30">30 sec</button>
+      <button onclick="selectElimTime(60)" id="elim-60">1 min</button>
+      <button onclick="selectElimTime(120)" id="elim-120">2 min</button>
+      <button onclick="selectElimTime(180)" id="elim-180">3 min</button>
+      <button onclick="selectElimTime(300)" id="elim-300">5 min</button>
+    </div>
+    <div class="time-select" id="time-select-infect" style="display:none">
+      <button onclick="selectTime(60)" id="inf-60">1 min</button>
+      <button onclick="selectTime(120)" id="inf-120">2 min</button>
+      <button onclick="selectTime(180)" id="inf-180">3 min</button>
+      <button onclick="selectTime(300)" id="inf-300">5 min</button>
+      <button onclick="selectTime(600)" id="inf-600">10 min</button>
+      <button onclick="selectTime(0)" id="inf-0">Unlimited</button>
+    </div>
+  </div>
+
+  <div class="settings-card">
+    <div class="section-label">Options</div>
+    <div class="mode-select" style="margin-bottom:8px">
+      <button onclick="toggleLava()" id="lava-toggle" class="selected">Lava: ON</button>
+      <button onclick="toggleMeteors()" id="meteor-toggle" class="selected">Meteors: ON</button>
+      <button onclick="toggleDash()" id="dash-toggle" class="selected">Dash: ON</button>
+    </div>
+    <div style="color:#777;font-size:11px;margin-bottom:10px;text-align:center" id="meteor-desc">
+      Meteors rain down on random players. Getting hit costs 50% of your score. Watch for the red warning zone and get out fast!
+    </div>
+    <div class="section-label">Speed</div>
+    <div class="speed-slider-row">
+      <label>Player</label>
+      <input type="range" min="0.1" max="10" step="0.1" value="1" id="player-speed-slider" oninput="setPlayerSpeed(this.value)">
+      <span class="speed-val" id="player-speed-val">1.0</span>
+    </div>
+    <div class="speed-slider-row">
+      <label>AI</label>
+      <input type="range" min="0.1" max="10" step="0.1" value="1" id="ai-speed-slider" oninput="setAISpeed(this.value)">
+      <span class="speed-val" id="ai-speed-val">1.0</span>
+    </div>
+    <div style="height:8px"></div>
+    <div class="section-label">Orbs</div>
+    <div class="legend" id="orb-toggles"></div>
+  </div>
+
+  <div class="settings-card">
+    <div class="section-label">Controls</div>
+    <div class="controls-info" id="controls-info"></div>
+  </div>
+
+  <button id="play-btn" onclick="startGame()">Play</button>
+</div>
+<div id="game-over-screen">
+  <h1>Time's Up!</h1>
+  <div id="final-scores"></div>
+  <button onclick="backToMenu()">Play Again</button>
+</div>
+
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const uiEl = document.getElementById('ui');
+const msgEl = document.getElementById('message');
+const startScreen = document.getElementById('start-screen');
+const controlsInfo = document.getElementById('controls-info');
+const timerDisplay = document.getElementById('timer-display');
+const gameOverScreen = document.getElementById('game-over-screen');
+const finalScoresEl = document.getElementById('final-scores');
+
+let W, H;
+function resize() { W = canvas.width = innerWidth; H = canvas.height = innerHeight; }
+resize();
+addEventListener('resize', resize);
+
+const keys = {};
+addEventListener('keydown', e => { keys[e.code] = true; e.preventDefault(); });
+addEventListener('keyup', e => { keys[e.code] = false; });
+
+const PLAYER_CONFIGS = [
+  {
+    name: 'P1', color: '#00d4ff',
+    up: 'KeyW', down: 'KeyS', left: 'KeyA', right: 'KeyD',
+    dash: ['Space'],
+    label: 'WASD + Space (dash/shoot)'
+  },
+  {
+    name: 'P2', color: '#ff8800',
+    up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight',
+    dash: ['Numpad0', 'Period'],
+    label: 'Arrows + . or Num0 (dash/shoot)'
+  },
+  {
+    name: 'P3', color: '#00ff88',
+    up: 'KeyI', down: 'KeyK', left: 'KeyJ', right: 'KeyL',
+    dash: ['KeyU'],
+    label: 'IJKL + U (dash/shoot)'
+  },
+  {
+    name: 'P4', color: '#ff00ff',
+    up: 'Numpad8', down: 'Numpad5', left: 'Numpad4', right: 'Numpad6',
+    dash: ['Numpad1'],
+    label: 'Num8456 + Num1 (dash/shoot)'
+  }
+];
+
+// Extra colors for AI beyond the 4 player slots
+const AI_EXTRA_COLORS = ['#ff5599', '#99ff33', '#ff9933', '#33cccc', '#cc66ff', '#ffcc00', '#66ffcc'];
+
+const SPAWN_POSITIONS = [
+  (w, h) => ({ x: 100, y: 100 }),
+  (w, h) => ({ x: w - 100, y: h - 100 }),
+  (w, h) => ({ x: w - 100, y: 100 }),
+  (w, h) => ({ x: 100, y: h - 100 }),
+  (w, h) => ({ x: w / 2, y: 100 }),
+  (w, h) => ({ x: w / 2, y: h - 100 }),
+  (w, h) => ({ x: 100, y: h / 2 }),
+  (w, h) => ({ x: w - 100, y: h / 2 }),
+];
+
+const ORB_TYPES = [
+  { name: 'Speed Boost',  color: '#00ff88', duration: 6000,  effect: 'speed',    letter: 'S', enabled: true },
+  { name: 'Shield',       color: '#ff00ff', duration: 6500,  effect: 'shield',   letter: 'P', enabled: true },
+  { name: 'Freeze Tag',   color: '#00d4ff', duration: 3750,  effect: 'freeze',   letter: 'F', enabled: true },
+  { name: 'Teleport',     color: '#ff4444', duration: 0,     effect: 'teleport', letter: 'T', enabled: true },
+  { name: 'Score x2',     color: '#ffd700', duration: 7000,  effect: 'double',   letter: 'X', enabled: true },
+  { name: 'Shrink',       color: '#ff8800', duration: 8100,  effect: 'shrink',   letter: 'R', enabled: true },
+  { name: 'Bullet',       color: '#88ff00', duration: 12000, effect: 'bullet',   letter: 'B', enabled: true },
+  { name: 'Star',         color: '#ffee44', duration: 0,     effect: 'star',     letter: '*', enabled: true },
+];
+
+let numHumans = 1;
+let numAI = 3;
+let timeLimit = 120; // seconds, 0 = unlimited
+let gameMode = 'classic'; // 'classic' or 'elimination'
+let lavaEnabled = true;
+let meteorsEnabled = true;
+let meteorTimer = 0; // ms until next meteor
+let starTimer = 0;   // ms until next star spawn
+let dashEnabled = true;
+let playerSpeedSetting = 1;
+let aiSpeedSetting = 1.0;
+let entities = [];
+let obstacles, tunnels, lavaZones, orbs, particles, bullets, floatingTexts, meteors, portals;
+let portalTimer = 0;
+let itIndex, gameRunning, tagCooldown;
+let gameTimer; // remaining time in ms, -1 = unlimited
+let elimTimer; // elimination countdown in ms
+let elapsedTime = 0; // total elapsed ms (for stopwatch and gradual speed)
+let elimRoundTime = 30; // seconds per elimination round
+
+// Bullet constants
+const BULLET_SPEED = 11;
+const BULLET_RADIUS = 5;
+const BULLET_LIFETIME = 120; // frames (longer range since faster)
+const BULLET_FREEZE_DUR = 1500; // ms freeze on hit
+const BULLET_AMMO = 2; // shots per pickup
+
+function selectPlayers(n) {
+  numHumans = n;
+  for (let i = 1; i <= 4; i++) {
+    document.getElementById('sel-' + i).classList.toggle('selected', i === n);
+  }
+  // Ensure at least 2 total
+  if (numHumans + numAI < 2) { numAI = 2 - numHumans; }
+  rebuildAIButtons();
+  updateControlsDisplay();
+}
+
+function selectAI(n) {
+  numAI = n;
+  rebuildAIButtons();
+  updateControlsDisplay();
+}
+
+function rebuildAIButtons() {
+  const minAI = Math.max(0, 2 - numHumans); // need at least 2 total
+  const maxAI = 7; // up to 7 AI
+  const container = document.getElementById('ai-select');
+  let html = '';
+  for (let i = 0; i <= maxAI; i++) {
+    const disabled = i < minAI ? 'disabled' : '';
+    const selected = i === numAI ? 'selected' : '';
+    html += `<button onclick="selectAI(${i})" id="ai-${i}" class="${selected}" ${disabled}>${i}</button>`;
+  }
+  container.innerHTML = html;
+}
+
+function selectTime(t) {
+  timeLimit = t;
+  for (const v of [60, 120, 180, 300, 600, 0]) {
+    const el = document.getElementById('time-' + v);
+    if (el) el.classList.toggle('selected', v === t);
+  }
+  for (const v of [60, 120, 180, 300, 600, 0]) {
+    const el = document.getElementById('inf-' + v);
+    if (el) el.classList.toggle('selected', v === t);
+  }
+}
+
+function selectElimTime(t) {
+  elimRoundTime = t;
+  for (const v of [30, 60, 120, 180, 300]) {
+    document.getElementById('elim-' + v).classList.toggle('selected', v === t);
+  }
+}
+
+function selectMode(m) {
+  gameMode = m;
+  document.getElementById('mode-classic').classList.toggle('selected', m === 'classic');
+  document.getElementById('mode-elimination').classList.toggle('selected', m === 'elimination');
+  document.getElementById('mode-infect').classList.toggle('selected', m === 'infect');
+  const classicTime = document.getElementById('time-select-classic');
+  const elimTime = document.getElementById('time-select-elim');
+  const infectTime = document.getElementById('time-select-infect');
+  const timeLbl = document.getElementById('time-label');
+  const lavaBtn = document.getElementById('lava-toggle');
+  const meteorDesc = document.getElementById('meteor-desc');
+  classicTime.style.display = 'none';
+  elimTime.style.display = 'none';
+  infectTime.style.display = 'none';
+  if (m === 'elimination') {
+    elimTime.style.display = '';
+    timeLbl.textContent = 'Round Time';
+    lavaBtn.style.display = 'none';
+    meteorDesc.textContent = 'Meteors rain down on random players. Getting hit eliminates you from the round. Watch for the red warning zone and get out fast!';
+  } else if (m === 'infect') {
+    infectTime.style.display = '';
+    timeLbl.textContent = 'Time Limit';
+    lavaBtn.style.display = 'none';
+    meteorDesc.textContent = 'Meteors rain down on survivors. Getting hit makes you join the IT team. Watch for the red warning zone!';
+  } else {
+    classicTime.style.display = '';
+    timeLbl.textContent = 'Time Limit';
+    lavaBtn.style.display = '';
+    meteorDesc.textContent = 'Meteors rain down on random players. Getting hit costs 50% of your score. Watch for the red warning zone and get out fast!';
+  }
+}
+
+function toggleLava() {
+  lavaEnabled = !lavaEnabled;
+  const btn = document.getElementById('lava-toggle');
+  btn.textContent = 'Lava: ' + (lavaEnabled ? 'ON' : 'OFF');
+  btn.classList.toggle('selected', lavaEnabled);
+}
+
+function toggleMeteors() {
+  meteorsEnabled = !meteorsEnabled;
+  const btn = document.getElementById('meteor-toggle');
+  btn.textContent = 'Meteors: ' + (meteorsEnabled ? 'ON' : 'OFF');
+  btn.classList.toggle('selected', meteorsEnabled);
+}
+
+function toggleDash() {
+  dashEnabled = !dashEnabled;
+  const btn = document.getElementById('dash-toggle');
+  btn.textContent = 'Dash: ' + (dashEnabled ? 'ON' : 'OFF');
+  btn.classList.toggle('selected', dashEnabled);
+}
+
+function setPlayerSpeed(val) {
+  playerSpeedSetting = parseFloat(val);
+  document.getElementById('player-speed-val').textContent = playerSpeedSetting.toFixed(1);
+}
+
+function setAISpeed(val) {
+  aiSpeedSetting = parseFloat(val);
+  document.getElementById('ai-speed-val').textContent = aiSpeedSetting.toFixed(1);
+}
+
+function toggleOrb(index) {
+  ORB_TYPES[index].enabled = !ORB_TYPES[index].enabled;
+  buildOrbToggles();
+}
+
+function buildOrbToggles() {
+  const container = document.getElementById('orb-toggles');
+  let html = '';
+  for (let i = 0; i < ORB_TYPES.length; i++) {
+    const orb = ORB_TYPES[i];
+    if (orb.effect === 'double') continue; // hide x2 score from menu
+    const dis = orb.enabled ? '' : ' disabled';
+    html += `<label class="legend-item${dis}" onclick="toggleOrb(${i})">
+      <input type="checkbox" class="legend-cb" ${orb.enabled ? 'checked' : ''} onclick="event.stopPropagation();toggleOrb(${i})">
+      <div class="legend-dot" style="background:${orb.color}"></div>
+      (${orb.letter}) ${orb.name}
+    </label>`;
+  }
+  container.innerHTML = html;
+}
+
+function updateControlsDisplay() {
+  let html = '';
+  for (let i = 0; i < numHumans; i++) {
+    const c = PLAYER_CONFIGS[i];
+    html += `<div class="ctrl-item">
+      <div class="ctrl-label" style="color:${c.color}">${c.name}:</div>
+      <div class="ctrl-keys"><span>${c.label}</span></div>
+    </div>`;
+  }
+  if (numAI > 0) {
+    html += `<div class="ctrl-item">
+      <div class="ctrl-keys" style="color:#888">${numAI} AI opponent${numAI > 1 ? 's' : ''}</div>
+    </div>`;
+  }
+  controlsInfo.innerHTML = html;
+}
+
+function makeEntity(index, isHuman, aiNumber) {
+  const cfg = index < PLAYER_CONFIGS.length ? PLAYER_CONFIGS[index] : null;
+  const posIndex = index % SPAWN_POSITIONS.length;
+  const pos = SPAWN_POSITIONS[posIndex](W, H);
+  // Add small random offset to avoid stacking when >4 entities share spawn points
+  const jitter = index >= 4 ? 40 : 0;
+  let color, name, config;
+  if (isHuman) {
+    color = cfg.color;
+    name = cfg.name;
+    config = cfg;
+  } else {
+    // AI — use player config color if in range, otherwise use extra AI colors
+    if (cfg) {
+      color = cfg.color;
+    } else {
+      color = AI_EXTRA_COLORS[(index - 4) % AI_EXTRA_COLORS.length];
+    }
+    name = 'AI' + aiNumber;
+    config = cfg || PLAYER_CONFIGS[0]; // AI doesn't use config keys, just needs a reference
+  }
+  return {
+    index, isHuman, config,
+    x: pos.x + (Math.random() - 0.5) * jitter,
+    y: pos.y + (Math.random() - 0.5) * jitter,
+    r: 18, color, name,
+    vx: 0, vy: 0, speed: isHuman ? playerSpeedSetting : aiSpeedSetting,
+    score: 0,
+    facingX: 0, facingY: 1,
+    effects: {}, trail: [],
+    tagFreezeTimer: 0,
+    bulletCooldown: 0,
+    bulletAmmo: 0, // set when bullet orb is collected
+    itCount: 0, // how many times this entity has been IT
+    lavaTimer: 0,
+    onLava: false,
+    wasInTunnel: false,
+    infected: false, // for infect mode
+    dashCooldown: 0, // ms until dash is available again
+    dashImmune: 0, // ms of tag immunity during dash
+  };
+}
+
+function generateObstacles() {
+  const obs = [];
+  const halfW = W / 2, halfH = H / 2;
+  // Generate obstacles in top-left quadrant, then mirror exactly (symmetrical)
+  const count = 5 + Math.floor(Math.random() * 3);
+  for (let i = 0; i < count; i++) {
+    const w = 40 + Math.random() * 90;
+    const h = 40 + Math.random() * 90;
+    const x = 80 + Math.random() * (halfW - 120 - w);
+    const y = 80 + Math.random() * (halfH - 120 - h);
+
+    let tooClose = false;
+    const totalEnts = numHumans + numAI;
+    for (let si = 0; si < Math.min(totalEnts, SPAWN_POSITIONS.length); si++) {
+      const p = SPAWN_POSITIONS[si](W, H);
+      if ((Math.abs(x + w/2 - p.x) < 90 && Math.abs(y + h/2 - p.y) < 90) ||
+          (Math.abs((W - x - w) + w/2 - p.x) < 90 && Math.abs((H - y - h) + h/2 - p.y) < 90)) {
+        tooClose = true; break;
+      }
+    }
+    if (tooClose) continue;
+
+    const hue = 220 + Math.random() * 40;
+    const light = 18 + Math.random() * 10;
+
+    obs.push({ x, y, w, h, color: `hsl(${hue}, 30%, ${light}%)` });
+    // Exact mirror: rotate 180 degrees around center
+    obs.push({ x: W - x - w, y: H - y - h, w, h, color: `hsl(${hue}, 30%, ${light}%)` });
+  }
+
+  // 1 center obstacle (symmetrical by nature since it's centered)
+  const cw = 60 + Math.random() * 70;
+  const ch = 60 + Math.random() * 70;
+  obs.push({ x: halfW - cw/2, y: halfH - ch/2, w: cw, h: ch, color: 'hsl(230, 30%, 22%)' });
+
+  return obs;
+}
+
+// Lava zones: big dangerous areas, symmetrical
+function generateLava() {
+  const zones = [];
+  // Place 2 pairs (4 total) of lava, trying many times
+  for (let pair = 0; pair < 2; pair++) {
+    for (let attempt = 0; attempt < 60; attempt++) {
+      const w = 80 + Math.random() * 100;
+      const h = 60 + Math.random() * 80;
+      // Place anywhere on the map with margins
+      const x = 80 + Math.random() * (W / 2 - 100 - w);
+      const y = 80 + Math.random() * (H / 2 - 100 - h);
+      // Ensure valid range
+      if (x < 50 || y < 50 || x + w > W / 2) continue;
+
+      const mx = W - x - w, my = H - y - h;
+
+      // Check not too close to spawn points
+      let tooClose = false;
+      const totalEnts = numHumans + numAI;
+      for (let si = 0; si < Math.min(totalEnts, SPAWN_POSITIONS.length); si++) {
+        const p = SPAWN_POSITIONS[si](W, H);
+        if ((Math.hypot(x + w/2 - p.x, y + h/2 - p.y) < 80) ||
+            (Math.hypot(mx + w/2 - p.x, my + h/2 - p.y) < 80)) {
+          tooClose = true; break;
+        }
+      }
+      if (tooClose) continue;
+
+      // Check not overlapping obstacles (only non-tunnel obstacles, use small margin)
+      let blocked = false;
+      for (const o of obstacles) {
+        if (rectsOverlap(x, y, w, h, o.x, o.y, o.w, o.h, 10) ||
+            rectsOverlap(mx, my, w, h, o.x, o.y, o.w, o.h, 10)) {
+          blocked = true; break;
+        }
+      }
+      if (blocked) continue;
+
+      // Check not overlapping existing lava
+      for (const existing of zones) {
+        if (rectsOverlap(x, y, w, h, existing.x, existing.y, existing.w, existing.h, 30) ||
+            rectsOverlap(mx, my, w, h, existing.x, existing.y, existing.w, existing.h, 30)) {
+          blocked = true; break;
+        }
+      }
+      if (blocked) continue;
+
+      zones.push({ x, y, w, h, pulse: Math.random() * Math.PI * 2 });
+      zones.push({ x: mx, y: my, w, h, pulse: Math.random() * Math.PI * 2 });
+      break; // success, move to next pair
+    }
+  }
+  return zones;
+}
+
+function rectsOverlap(ax, ay, aw, ah, bx, by, bw, bh, margin) {
+  return ax - margin < bx + bw && ax + aw + margin > bx &&
+         ay - margin < by + bh && ay + ah + margin > by;
+}
+
+// Tunnels: exactly 2, narrow passages only shrink-sized entities (r<=12) can fit through
+function generateTunnels() {
+  const tnls = [];
+  const tunnelGap = 28;
+
+  // Generate one tunnel in top-left, validate it, then mirror it
+  let savedThick, savedLen, savedHoriz;
+  for (let attempt = 0; attempt < 50; attempt++) {
+    const horizontal = Math.random() < 0.5;
+    const wallThick = 30 + Math.random() * 25;
+    const wallLen = 160 + Math.random() * 100;
+    const cx = 200 + Math.random() * (W / 2 - 300);
+    const cy = 200 + Math.random() * (H / 2 - 300);
+
+    if (!validateTunnel(cx, cy, horizontal, wallThick, wallLen, tunnelGap, tnls)) continue;
+
+    savedThick = wallThick; savedLen = wallLen; savedHoriz = horizontal;
+    addTunnel(tnls, cx, cy, horizontal, wallThick, wallLen, tunnelGap);
+
+    // Mirror: opposite quadrant, same orientation and dimensions
+    const mcx = W - cx, mcy = H - cy;
+    if (validateTunnel(mcx, mcy, horizontal, wallThick, wallLen, tunnelGap, tnls)) {
+      addTunnel(tnls, mcx, mcy, horizontal, wallThick, wallLen, tunnelGap);
+    }
+    break;
+  }
+  return tnls;
+}
+
+function validateTunnel(cx, cy, horizontal, wallThick, wallLen, tunnelGap, existing) {
+  let w1, w2;
+  if (horizontal) {
+    w1 = { x: cx - wallLen/2, y: cy - tunnelGap/2 - wallThick, w: wallLen, h: wallThick };
+    w2 = { x: cx - wallLen/2, y: cy + tunnelGap/2, w: wallLen, h: wallThick };
+  } else {
+    w1 = { x: cx - tunnelGap/2 - wallThick, y: cy - wallLen/2, w: wallThick, h: wallLen };
+    w2 = { x: cx + tunnelGap/2, y: cy - wallLen/2, w: wallThick, h: wallLen };
+  }
+  for (const o of obstacles) {
+    if (rectsOverlap(w1.x, w1.y, w1.w, w1.h, o.x, o.y, o.w, o.h, 15) ||
+        rectsOverlap(w2.x, w2.y, w2.w, w2.h, o.x, o.y, o.w, o.h, 15)) return false;
+  }
+  const totalEnts = numHumans + numAI;
+  for (let si = 0; si < Math.min(totalEnts, SPAWN_POSITIONS.length); si++) {
+    const p = SPAWN_POSITIONS[si](W, H);
+    if (Math.hypot(cx - p.x, cy - p.y) < 120) return false;
+  }
+  for (const e of existing) {
+    if (Math.hypot(cx - e.cx, cy - e.cy) < 200) return false;
+  }
+  let exitA, exitB;
+  const halfLen = wallLen / 2;
+  if (horizontal) {
+    exitA = { x: cx - halfLen - 25, y: cy };
+    exitB = { x: cx + halfLen + 25, y: cy };
+  } else {
+    exitA = { x: cx, y: cy - halfLen - 25 };
+    exitB = { x: cx, y: cy + halfLen + 25 };
+  }
+  let aBlocked = exitA.x < 25 || exitA.x > W - 25 || exitA.y < 25 || exitA.y > H - 25;
+  let bBlocked = exitB.x < 25 || exitB.x > W - 25 || exitB.y < 25 || exitB.y > H - 25;
+  for (const o of obstacles) {
+    if (exitA.x > o.x - 20 && exitA.x < o.x + o.w + 20 && exitA.y > o.y - 20 && exitA.y < o.y + o.h + 20) aBlocked = true;
+    if (exitB.x > o.x - 20 && exitB.x < o.x + o.w + 20 && exitB.y > o.y - 20 && exitB.y < o.y + o.h + 20) bBlocked = true;
+  }
+  if (aBlocked && bBlocked) return false;
+  return true;
+}
+
+function addTunnel(tnls, cx, cy, horizontal, wallThick, wallLen, tunnelGap) {
+  let w1, w2;
+  if (horizontal) {
+    w1 = { x: cx - wallLen/2, y: cy - tunnelGap/2 - wallThick, w: wallLen, h: wallThick };
+    w2 = { x: cx - wallLen/2, y: cy + tunnelGap/2, w: wallLen, h: wallThick };
+  } else {
+    w1 = { x: cx - tunnelGap/2 - wallThick, y: cy - wallLen/2, w: wallThick, h: wallLen };
+    w2 = { x: cx + tunnelGap/2, y: cy - wallLen/2, w: wallThick, h: wallLen };
+  }
+  w1.isTunnel = true; w1.color = 'hsl(30, 40%, 22%)';
+  w2.isTunnel = true; w2.color = 'hsl(30, 40%, 22%)';
+  tnls.push({ walls: [w1, w2], cx, cy, horizontal, gap: tunnelGap });
+}
+
+function isInsideTunnel(ent) {
+  for (const t of tunnels) {
+    const dx = Math.abs(ent.x - t.cx);
+    const dy = Math.abs(ent.y - t.cy);
+    if (t.horizontal) {
+      const wallLen = t.walls[0].w;
+      if (dx < wallLen/2 && dy < t.gap/2 + 5) return true;
+    } else {
+      const wallLen = t.walls[0].h;
+      if (dy < wallLen/2 && dx < t.gap/2 + 5) return true;
+    }
+  }
+  return false;
+}
+
+function isOpenSpace(px, py, r) {
+  // Check if a position is in open space (not inside walls/obstacles, and in bounds)
+  if (px < r || px > W - r || py < r || py > H - r) return false;
+  for (const o of obstacles) {
+    if (px > o.x - r && px < o.x + o.w + r && py > o.y - r && py < o.y + o.h + r) return false;
+  }
+  return true;
+}
+
+function pushOutOfTunnel(ent) {
+  // Find which tunnel the entity is in, then push to an open exit
+  for (const t of tunnels) {
+    let inside = false;
+    let endA, endB;
+    if (t.horizontal) {
+      const halfLen = t.walls[0].w / 2;
+      if (Math.abs(ent.x - t.cx) < halfLen && Math.abs(ent.y - t.cy) < t.gap/2 + 10) {
+        inside = true;
+        endA = { x: t.cx - halfLen - 25, y: t.cy };
+        endB = { x: t.cx + halfLen + 25, y: t.cy };
+      }
+    } else {
+      const halfLen = t.walls[0].h / 2;
+      if (Math.abs(ent.y - t.cy) < halfLen && Math.abs(ent.x - t.cx) < t.gap/2 + 10) {
+        inside = true;
+        endA = { x: t.cx, y: t.cy - halfLen - 25 };
+        endB = { x: t.cx, y: t.cy + halfLen + 25 };
+      }
+    }
+    if (inside) {
+      const aOpen = isOpenSpace(endA.x, endA.y, 18);
+      const bOpen = isOpenSpace(endB.x, endB.y, 18);
+
+      let chosen;
+      if (aOpen && bOpen) {
+        // Both open — pick closer
+        const dA = Math.hypot(ent.x - endA.x, ent.y - endA.y);
+        const dB = Math.hypot(ent.x - endB.x, ent.y - endB.y);
+        chosen = dA < dB ? endA : endB;
+      } else if (aOpen) {
+        chosen = endA;
+      } else if (bOpen) {
+        chosen = endB;
+      } else {
+        // Neither open — teleport to the one with more room and give immunity
+        chosen = endA;
+      }
+
+      ent.x = Math.max(20, Math.min(W - 20, chosen.x));
+      ent.y = Math.max(20, Math.min(H - 20, chosen.y));
+      ent.vx = 0;
+      ent.vy = 0;
+
+      // If teleported (not the closer exit), give 1 second tag immunity
+      if ((!aOpen || !bOpen) && !(aOpen && bOpen)) {
+        ent.tagFreezeTimer = 1000;
+        ent.effects.shield = 1000; // visual immunity
+        burst(ent.x, ent.y, '#ff00ff', 10);
+      }
+      return;
+    }
+  }
+}
+
+function spawnOrb() {
+  if (orbs.length >= Math.min(3 + Math.floor(entities.length / 2), 8)) return;
+  // Filter by enabled + elimination mode exclusions
+  let available = ORB_TYPES.filter(t => t.enabled && t.effect !== 'star');
+  if (gameMode === 'elimination' || gameMode === 'infect') available = available.filter(t => t.effect !== 'double');
+  if (available.length === 0) return; // no orbs enabled
+  // 25% more freeze orbs when meteors are on
+  if (meteorsEnabled) {
+    const freezeOrb = available.find(t => t.effect === 'freeze');
+    if (freezeOrb && Math.random() < 0.25) {
+      available = [freezeOrb];
+    }
+  }
+  // 20% more teleport orbs
+  if (Math.random() < 0.20) {
+    const tpOrb = available.find(t => t.effect === 'teleport');
+    if (tpOrb) available = [tpOrb];
+  }
+  const type = available[Math.floor(Math.random() * available.length)];
+  for (let tries = 0; tries < 50; tries++) {
+    const x = 40 + Math.random() * (W - 80);
+    const y = 40 + Math.random() * (H - 80);
+    let blocked = false;
+    for (const o of obstacles) {
+      if (x > o.x - 15 && x < o.x + o.w + 15 && y > o.y - 15 && y < o.y + o.h + 15) { blocked = true; break; }
+    }
+    // Also avoid lava
+    if (!blocked) {
+      for (const lz of lavaZones) {
+        if (x > lz.x - 15 && x < lz.x + lz.w + 15 && y > lz.y - 15 && y < lz.y + lz.h + 15) { blocked = true; break; }
+      }
+    }
+    if (!blocked) {
+      orbs.push({ x, y, r: 12, type, age: 0, pulse: Math.random() * Math.PI * 2 });
+      return;
+    }
+  }
+}
+
+function init() {
+  entities = [];
+  const total = numHumans + numAI;
+  let aiCounter = 1;
+  for (let i = 0; i < total; i++) {
+    const isHuman = i < numHumans;
+    entities.push(makeEntity(i, isHuman, isHuman ? 0 : aiCounter++));
+  }
+  obstacles = generateObstacles();
+  // No tunnels in infect mode
+  tunnels = (gameMode === 'infect') ? [] : generateTunnels();
+  for (const t of tunnels) {
+    for (const w of t.walls) obstacles.push(w);
+  }
+  // No lava in elimination or infect mode
+  lavaZones = (lavaEnabled && gameMode === 'classic') ? generateLava() : [];
+  orbs = [];
+  particles = [];
+  bullets = [];
+  floatingTexts = [];
+  meteors = [];
+  portals = [];
+  portalTimer = 30000; // first portal pair after 30 seconds
+  meteorTimer = 5000;
+  // Star timer
+  if (gameMode === 'elimination') {
+    starTimer = -1;
+  } else if (gameMode === 'infect') {
+    starTimer = 45000; // star every 45s in infect (removes an IT member)
+  } else if (timeLimit === 60) {
+    starTimer = 30000;
+  } else {
+    starTimer = 60000;
+  }
+  itIndex = Math.floor(Math.random() * total);
+  tagCooldown = 1500;
+  elapsedTime = 0;
+  if (gameMode === 'elimination') {
+    gameTimer = -1;
+    elimTimer = elimRoundTime * 1000;
+  } else if (gameMode === 'infect') {
+    gameTimer = timeLimit > 0 ? timeLimit * 1000 : -1;
+    elimTimer = 0;
+    // Mark the initial IT as infected
+    entities[itIndex].infected = true;
+  } else {
+    gameTimer = timeLimit > 0 ? timeLimit * 1000 : -1;
+    elimTimer = 0;
+  }
+  spawnOrb();
+  buildHUD();
+}
+
+function buildHUD() {
+  // Build HUD slots — will be reordered each frame
+  let html = '';
+  for (let i = 0; i < entities.length; i++) {
+    html += `<div class="player-hud" id="hud-${i}" style="order:0">
+      <div class="name" id="hud-name-${i}"></div>
+      <div class="score" id="hud-score-${i}"></div>
+      <div class="effect-text" id="hud-fx-${i}"></div>
+    </div>`;
+  }
+  uiEl.innerHTML = html;
+}
+
+function showMessage(text, dur) {
+  msgEl.textContent = text;
+  msgEl.style.opacity = 1;
+  setTimeout(() => msgEl.style.opacity = 0, dur || 1500);
+}
+
+function burst(x, y, color, count) {
+  for (let i = 0; i < count; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const s = 1 + Math.random() * 4;
+    particles.push({ x, y, vx: Math.cos(a)*s, vy: Math.sin(a)*s, life: 1, color, r: 2 + Math.random()*3 });
+  }
+}
+
+function collideRect(ent, ox, oy, ow, oh) {
+  const cx = Math.max(ox, Math.min(ent.x, ox + ow));
+  const cy = Math.max(oy, Math.min(ent.y, oy + oh));
+  const dx = ent.x - cx, dy = ent.y - cy;
+  const dist = Math.sqrt(dx*dx + dy*dy);
+  if (dist < ent.r) {
+    const overlap = ent.r - dist;
+    if (dist > 0) { ent.x += (dx/dist)*overlap; ent.y += (dy/dist)*overlap; }
+    else { ent.x += overlap; }
+    return true;
+  }
+  return false;
+}
+
+function bulletHitsRect(bx, by, br, ox, oy, ow, oh) {
+  const cx = Math.max(ox, Math.min(bx, ox + ow));
+  const cy = Math.max(oy, Math.min(by, oy + oh));
+  const dx = bx - cx, dy = by - cy;
+  return Math.sqrt(dx*dx + dy*dy) < br;
+}
+
+// Check if entity is near any tunnel (within tunnel wall zone, not just the gap)
+function isNearTunnel(ent) {
+  for (const t of tunnels) {
+    if (t.horizontal) {
+      const halfLen = t.walls[0].w / 2;
+      const totalH = t.gap / 2 + t.walls[0].h;
+      if (Math.abs(ent.x - t.cx) < halfLen + ent.r && Math.abs(ent.y - t.cy) < totalH + ent.r) return true;
+    } else {
+      const halfLen = t.walls[0].h / 2;
+      const totalW = t.gap / 2 + t.walls[0].w;
+      if (Math.abs(ent.y - t.cy) < halfLen + ent.r && Math.abs(ent.x - t.cx) < totalW + ent.r) return true;
+    }
+  }
+  return false;
+}
+
+function moveEntity(ent, dx, dy) {
+  const dtScale = dt / 16.67; // normalize to 60fps
+  let spd = ent.speed;
+
+  // IT/infected entities get 10% speed advantage
+  const isItEntity = entities[itIndex] === ent;
+  const isChaser = isItEntity || (gameMode === 'infect' && ent.infected);
+  let itBoost = gameMode === 'infect' ? 1.05 : 1.10;
+
+  // Unlimited time (non-classic): IT gets gradual +5% per minute on top of base
+  if (gameTimer === -1 && gameMode === 'infect') {
+    const minutesElapsed = elapsedTime / 60000;
+    itBoost = 1.05 + minutesElapsed * 0.05;
+  }
+
+  if (isChaser) spd *= itBoost;
+
+  // Infect mode: last survivor gets 25% over base (only if AI are in the game)
+  if (gameMode === 'infect' && entities.some(e => !e.isHuman)) {
+    const survivors = entities.filter(e => !e.infected);
+    if (survivors.length === 1 && survivors[0] === ent) spd = ent.speed * 1.25;
+  }
+
+  // Disable speed boost near tunnels
+  const nearTunnel = isNearTunnel(ent);
+  if (ent.effects.speed && !nearTunnel) spd *= 1.6;
+  if (ent.effects.shrink) spd *= 1.15;
+
+  // Smoothly interpolate radius instead of snapping
+  const targetR = ent.effects.shrink ? 11 : 18;
+  ent.r += (targetR - ent.r) * Math.min(0.15 * dtScale, 0.5);
+
+  // If non-shrinked and inside a tunnel, push to nearest opening
+  if (!ent.effects.shrink && ent.r > 13 && isInsideTunnel(ent)) {
+    pushOutOfTunnel(ent);
+    burst(ent.x, ent.y, '#ff8800', 8);
+    return;
+  }
+
+  ent.vx += dx * spd * 0.36 * dtScale;
+  ent.vy += dy * spd * 0.36 * dtScale;
+  const damping = Math.pow(0.88, dtScale);
+  ent.vx *= damping;
+  ent.vy *= damping;
+
+  // Sub-step movement to prevent clipping through walls at high speed
+  const vel = Math.hypot(ent.vx, ent.vy);
+  const maxStep = ent.r * 0.4;
+  const steps = vel > maxStep ? Math.ceil(vel / maxStep) : 1;
+  const stepVx = ent.vx / steps;
+  const stepVy = ent.vy / steps;
+  for (let s = 0; s < steps; s++) {
+    ent.x += stepVx;
+    ent.y += stepVy;
+    ent.x = Math.max(ent.r, Math.min(W - ent.r, ent.x));
+    ent.y = Math.max(ent.r, Math.min(H - ent.r, ent.y));
+    for (const o of obstacles) collideRect(ent, o.x, o.y, o.w, o.h);
+  }
+
+  // Update facing direction when moving
+  const moveLen = Math.hypot(ent.vx, ent.vy);
+  if (moveLen > 0.3) {
+    ent.facingX = ent.vx / moveLen;
+    ent.facingY = ent.vy / moveLen;
+  }
+
+  ent.trail.push({ x: ent.x, y: ent.y, life: 1 });
+  if (ent.trail.length > 12) ent.trail.shift();
+}
+
+function shootBullet(ent) {
+  if (ent.bulletCooldown > 0 || ent.bulletAmmo <= 0) return;
+  ent.bulletCooldown = 333; // short cooldown between shots (ms)
+  ent.bulletAmmo--;
+  // End bullet mode if out of ammo
+  if (ent.bulletAmmo <= 0) delete ent.effects.bullet;
+  const fx = ent.facingX, fy = ent.facingY;
+  const len = Math.hypot(fx, fy) || 1;
+  bullets.push({
+    x: ent.x + (fx/len) * (ent.r + 6),
+    y: ent.y + (fy/len) * (ent.r + 6),
+    vx: (fx/len) * BULLET_SPEED,
+    vy: (fy/len) * BULLET_SPEED,
+    owner: ent.index,
+    color: ent.color,
+    life: BULLET_LIFETIME,
+  });
+  burst(ent.x + (fx/len) * ent.r, ent.y + (fy/len) * ent.r, ent.color, 6);
+}
+
+// Dash constants
+const DASH_SPEED = 7;
+const DASH_COOLDOWN = 2000; // ms
+const DASH_DURATION = 120; // ms of invulnerability after dash
+
+function performDash(ent) {
+  if (!dashEnabled || ent.dashCooldown > 0) return;
+  const fx = ent.facingX, fy = ent.facingY;
+  const len = Math.hypot(fx, fy) || 1;
+  ent.vx = (fx / len) * DASH_SPEED;
+  ent.vy = (fy / len) * DASH_SPEED;
+  ent.dashCooldown = DASH_COOLDOWN;
+  ent.dashImmune = DASH_DURATION;
+  burst(ent.x, ent.y, ent.color, 10);
+}
+
+function getHumanInput(ent) {
+  const c = ent.config;
+  let dx = 0, dy = 0;
+  if (keys[c.up]) dy = -1;
+  if (keys[c.down]) dy = 1;
+  if (keys[c.left]) dx = -1;
+  if (keys[c.right]) dx = 1;
+
+  // Action button: shoot if bullet orb active, otherwise dash
+  const actionPressed = c.dash.some(k => keys[k]);
+  if (actionPressed && !ent._actionHeld) {
+    ent._actionHeld = true;
+    if (ent.effects.bullet) {
+      shootBullet(ent);
+    } else {
+      performDash(ent);
+    }
+  }
+  if (!actionPressed) ent._actionHeld = false;
+
+  // Normalize so diagonal movement isn't faster than cardinal
+  const len = Math.hypot(dx, dy);
+  if (len > 1) { dx /= len; dy /= len; }
+
+  return { dx, dy };
+}
+
+// --- Smarter AI ---
+
+function lineOfSight(ax, ay, bx, by) {
+  // Check if there's a clear line between two points (no obstacles)
+  const steps = 10;
+  for (let i = 1; i < steps; i++) {
+    const t = i / steps;
+    const px = ax + (bx - ax) * t;
+    const py = ay + (by - ay) * t;
+    for (const o of obstacles) {
+      if (px > o.x && px < o.x + o.w && py > o.y && py < o.y + o.h) return false;
+    }
+  }
+  return true;
+}
+
+function distToWall(x, y) {
+  return Math.min(x, y, W - x, H - y);
+}
+
+function pointBlocked(ax, ay, r) {
+  for (const o of obstacles) {
+    if (ax > o.x - r && ax < o.x + o.w + r && ay > o.y - r && ay < o.y + o.h + r) return true;
+  }
+  for (const lz of lavaZones) {
+    if (ax > lz.x - r && ax < lz.x + lz.w + r && ay > lz.y - r && ay < lz.y + lz.h + r) return true;
+  }
+  // AI avoids meteor warning zones (97% of the time)
+  if (meteorsEnabled && Math.random() < 0.97) {
+    for (const m of meteors) {
+      if (!m.hit && Math.hypot(ax - m.x, ay - m.y) < m.radius + r) return true;
+    }
+  }
+  return ax < r || ax > W - r || ay < r || ay > H - r;
+}
+
+function getAIInput(ent) {
+  if (ent.effects.freeze) return { dx: 0, dy: 0 };
+
+  const isIt = entities[itIndex] === ent;
+  const isShrunk = ent.effects.shrink && ent.r < 14;
+
+  // Initialize committed direction — AI locks into a direction for multiple frames
+  if (!ent._commitDx) { ent._commitDx = 0; ent._commitDy = 0; ent._commitTimer = 0; }
+
+  // --- Stuck detection: track position history ---
+  if (!ent._posHistory) ent._posHistory = [];
+  if (!ent._stuckEscape) ent._stuckEscape = null;
+
+  // Record position every commit cycle
+  if (ent._commitTimer <= 0) {
+    const snap = { x: Math.round(ent.x / 5) * 5, y: Math.round(ent.y / 5) * 5 };
+    ent._posHistory.push(snap);
+    if (ent._posHistory.length > 8) ent._posHistory.shift();
+
+    // Check if stuck: same position repeated 5+ times
+    if (ent._posHistory.length >= 5) {
+      const last = ent._posHistory[ent._posHistory.length - 1];
+      let repeatCount = 0;
+      for (const p of ent._posHistory) {
+        if (p.x === last.x && p.y === last.y) repeatCount++;
+      }
+      if (repeatCount >= 5 && !ent._stuckEscape) {
+        // Stuck! Pick a random safe direction to escape
+        const angles = [];
+        for (let a = 0; a < 12; a++) angles.push(a * Math.PI / 6);
+        // Shuffle so it doesn't always pick the same escape
+        for (let i = angles.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [angles[i], angles[j]] = [angles[j], angles[i]];
+        }
+        for (const angle of angles) {
+          const tx = ent.x + Math.cos(angle) * 60;
+          const ty = ent.y + Math.sin(angle) * 60;
+          if (!pointBlocked(tx, ty, ent.r)) {
+            ent._stuckEscape = { dx: Math.cos(angle), dy: Math.sin(angle), timer: 30 };
+            ent._posHistory = [];
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  // If in stuck escape mode, follow the escape direction
+  if (ent._stuckEscape) {
+    ent._stuckEscape.timer--;
+    if (ent._stuckEscape.timer <= 0) {
+      ent._stuckEscape = null; // done escaping, resume normal AI
+    } else {
+      return { dx: ent._stuckEscape.dx, dy: ent._stuckEscape.dy };
+    }
+  }
+
+  // If AI still has committed time left, keep going that direction
+  if (ent._commitTimer > 0) {
+    ent._commitTimer--;
+    return { dx: ent._commitDx, dy: ent._commitDy };
+  }
+
+  let bestDx = 0, bestDy = 0;
+  let commitTime = 8; // how many frames to commit to this direction (default)
+
+  // --- Shrink tunnel behavior ---
+  if (isShrunk && !isIt) {
+    if (isInsideTunnel(ent)) {
+      for (const t of tunnels) {
+        if (t.horizontal && Math.abs(ent.x - t.cx) < t.walls[0].w/2 && Math.abs(ent.y - t.cy) < t.gap/2 + 10) {
+          if (!ent._tunnelDir) ent._tunnelDir = 1;
+          const halfLen = t.walls[0].w / 2 - 10;
+          if (Math.abs(ent.x - t.cx) > halfLen) ent._tunnelDir = -ent._tunnelDir;
+          bestDx = ent._tunnelDir * 0.5;
+          bestDy = (t.cy - ent.y) * 0.1;
+          commitTime = 15;
+          ent._commitDx = bestDx; ent._commitDy = bestDy; ent._commitTimer = commitTime;
+          return { dx: bestDx, dy: bestDy };
+        } else if (!t.horizontal && Math.abs(ent.y - t.cy) < t.walls[0].h/2 && Math.abs(ent.x - t.cx) < t.gap/2 + 10) {
+          if (!ent._tunnelDir) ent._tunnelDir = 1;
+          const halfLen = t.walls[0].h / 2 - 10;
+          if (Math.abs(ent.y - t.cy) > halfLen) ent._tunnelDir = -ent._tunnelDir;
+          bestDy = ent._tunnelDir * 0.5;
+          bestDx = (t.cx - ent.x) * 0.1;
+          commitTime = 15;
+          ent._commitDx = bestDx; ent._commitDy = bestDy; ent._commitTimer = commitTime;
+          return { dx: bestDx, dy: bestDy };
+        }
+      }
+    } else {
+      let nearestTunnel = null, nearDist = 400;
+      for (const t of tunnels) {
+        const d = Math.hypot(t.cx - ent.x, t.cy - ent.y);
+        if (d < nearDist) { nearDist = d; nearestTunnel = t; }
+      }
+      if (nearestTunnel) {
+        bestDx = nearestTunnel.cx - ent.x;
+        bestDy = nearestTunnel.cy - ent.y;
+        const l = Math.hypot(bestDx, bestDy) || 1;
+        bestDx /= l; bestDy /= l;
+        ent._tunnelDir = null;
+        commitTime = 10;
+      }
+    }
+  }
+
+  const hasTunnelGoal = isShrunk && !isIt && (bestDx !== 0 || bestDy !== 0);
+
+  // --- Chaser / Runner logic ---
+  if (hasTunnelGoal) {
+    // heading to tunnel
+  } else if (isIt || (gameMode === 'infect' && ent.infected)) {
+    // Chaser: IT entity or infected entity in infect mode
+    if (!ent._chasedList) ent._chasedList = [];
+    if (!ent._chaseTarget || ent._chaseTimer <= 0) {
+      // In infect mode, only chase non-infected
+      const others = gameMode === 'infect'
+        ? entities.filter(o => o !== ent && !o.infected)
+        : entities.filter(o => o !== ent);
+      if (others.length === 0) { ent._chaseTarget = null; }
+      else {
+      let picked = null;
+      // Prioritize frozen targets — easy tags
+      const frozenTargets = others.filter(o => o.effects.freeze && !o.effects.shield && o.dashImmune <= 0);
+      if (frozenTargets.length > 0) {
+        frozenTargets.sort((a, b) => Math.hypot(a.x - ent.x, a.y - ent.y) - Math.hypot(b.x - ent.x, b.y - ent.y));
+        picked = frozenTargets[0];
+      }
+      const humans = others.filter(o => o.isHuman);
+      // Infect mode: 50% chance to target humans
+      if (!picked && gameMode === 'infect' && humans.length > 0 && Math.random() < 0.25) {
+        humans.sort((a, b) => Math.hypot(a.x - ent.x, a.y - ent.y) - Math.hypot(b.x - ent.x, b.y - ent.y));
+        picked = humans[0];
+      } else if (!picked && humans.length > 0 && ent.itCount > 0 && ent.itCount % 3 === 0) {
+        humans.sort((a, b) => Math.hypot(a.x - ent.x, a.y - ent.y) - Math.hypot(b.x - ent.x, b.y - ent.y));
+        picked = humans[0];
+      } else if (!picked && numAI > 4 && humans.length > 0 && Math.random() < 0.25) {
+        humans.sort((a, b) => Math.hypot(a.x - ent.x, a.y - ent.y) - Math.hypot(b.x - ent.x, b.y - ent.y));
+        picked = humans[0];
+      } else if (!picked) {
+        others.sort((a, b) => Math.hypot(a.x - ent.x, a.y - ent.y) - Math.hypot(b.x - ent.x, b.y - ent.y));
+        for (const o of others) {
+          if (!ent._chasedList.includes(o.index)) { picked = o; break; }
+        }
+        if (!picked) { ent._chasedList = []; picked = others[0]; }
+      }
+      ent._chaseTarget = picked;
+      if (picked) ent._chasedList.push(picked.index);
+      // Infect: chase for up to 20s then switch; others: 3-5s
+      ent._chaseTimer = gameMode === 'infect' ? 900 + Math.floor(Math.random() * 300) : 180 + Math.floor(Math.random() * 120);
+      } // close others.length check
+    }
+    ent._chaseTimer--;
+    const bestTarget = ent._chaseTarget;
+    if (bestTarget) {
+      // Approach from an angle — offset target by entity-specific angle
+      if (!ent._approachAngle) ent._approachAngle = (ent.index * 1.3 + Math.random() * 2) % (Math.PI * 2);
+      const targetDist = Math.hypot(bestTarget.x - ent.x, bestTarget.y - ent.y);
+      if (targetDist > 80) {
+        // Flank: aim at a point offset from the target
+        const flankDist = Math.min(60, targetDist * 0.4);
+        const aimX = bestTarget.x + Math.cos(ent._approachAngle) * flankDist;
+        const aimY = bestTarget.y + Math.sin(ent._approachAngle) * flankDist;
+        bestDx = aimX - ent.x;
+        bestDy = aimY - ent.y;
+      } else {
+        // Close enough — go straight
+        bestDx = bestTarget.x - ent.x;
+        bestDy = bestTarget.y - ent.y;
+        // Pick new approach angle for next chase
+        ent._approachAngle = Math.random() * Math.PI * 2;
+        // IT AI dashes toward target when close and no bullet orb
+        if (targetDist < 120 && !ent.effects.bullet) {
+          const dlen = Math.hypot(bestDx, bestDy) || 1;
+          ent.facingX = bestDx / dlen;
+          ent.facingY = bestDy / dlen;
+          performDash(ent);
+        }
+      }
+
+      // IT AI shoots bullets at chase target if possible
+      if (ent.effects.bullet && ent.bulletAmmo > 0) {
+        const targetDist = Math.hypot(bestTarget.x - ent.x, bestTarget.y - ent.y);
+        if (targetDist < 300 && lineOfSight(ent.x, ent.y, bestTarget.x, bestTarget.y)) {
+          const slen = targetDist || 1;
+          ent.facingX = (bestTarget.x - ent.x) / slen;
+          ent.facingY = (bestTarget.y - ent.y) / slen;
+          shootBullet(ent);
+        }
+      }
+    }
+    commitTime = 6;
+  } else {
+    // Find nearest threat: in infect mode, any non-frozen infected entity; otherwise just IT
+    let threatX, threatY, threatDist;
+    if (gameMode === 'infect') {
+      let nearest = null, nd = Infinity;
+      for (const other of entities) {
+        if (!other.infected || other.effects.freeze) continue;
+        const d = Math.hypot(other.x - ent.x, other.y - ent.y);
+        if (d < nd) { nd = d; nearest = other; }
+      }
+      if (nearest) { threatX = nearest.x; threatY = nearest.y; threatDist = nd; }
+      else { const it = entities[itIndex]; threatX = it.x; threatY = it.y; threatDist = Math.hypot(it.x - ent.x, it.y - ent.y); }
+    } else {
+      const it = entities[itIndex];
+      threatX = it.x; threatY = it.y; threatDist = Math.hypot(it.x - ent.x, it.y - ent.y);
+    }
+    const itAngle = Math.atan2(threatY - ent.y, threatX - ent.x);
+
+    if (threatDist < 200) {
+      // Evade: pick best escape angle ONCE, then commit to it
+      const escapeAngles = [];
+      for (let a = 0; a < 8; a++) {
+        const angle = a * Math.PI / 4;
+        const angleDiff = Math.abs(((angle - itAngle) + Math.PI * 3) % (Math.PI * 2) - Math.PI);
+        if (angleDiff < Math.PI / 3) continue;
+        const testDist = 100;
+        const testX = ent.x + Math.cos(angle) * testDist;
+        const testY = ent.y + Math.sin(angle) * testDist;
+        let score = Math.min(distToWall(testX, testY), 150);
+        if (pointBlocked(testX, testY, ent.r)) score -= 200;
+        score += angleDiff * 20;
+        escapeAngles.push({ angle, score });
+      }
+      if (escapeAngles.length > 0) {
+        escapeAngles.sort((a, b) => b.score - a.score);
+        const best = escapeAngles[0]; // always pick the best, no random
+        bestDx = Math.cos(best.angle);
+        bestDy = Math.sin(best.angle);
+      } else {
+        bestDx = -Math.cos(itAngle);
+        bestDy = -Math.sin(itAngle);
+      }
+      commitTime = 12; // commit to escape direction for longer
+
+      // AI dashes when threat is very close and no bullet orb
+      if (threatDist < 100 && !ent.effects.bullet) {
+        ent.facingX = bestDx;
+        ent.facingY = bestDy;
+        performDash(ent);
+      }
+    } else {
+      // Far — seek orbs or wander
+      let nearestOrb = null, orbDist = 250;
+      for (const orb of orbs) {
+        const d = Math.hypot(orb.x - ent.x, orb.y - ent.y);
+        if (d < orbDist) { orbDist = d; nearestOrb = orb; }
+      }
+      if (nearestOrb) {
+        bestDx = nearestOrb.x - ent.x;
+        bestDy = nearestOrb.y - ent.y;
+        commitTime = 10;
+      } else {
+        if (!ent._wanderX || Math.hypot(ent._wanderX - ent.x, ent._wanderY - ent.y) < 40) {
+          for (let wt = 0; wt < 10; wt++) {
+            ent._wanderX = 100 + Math.random() * (W - 200);
+            ent._wanderY = 100 + Math.random() * (H - 200);
+            if (!pointBlocked(ent._wanderX, ent._wanderY, 20)) break;
+          }
+        }
+        bestDx = ent._wanderX - ent.x;
+        bestDy = ent._wanderY - ent.y;
+        commitTime = 15;
+      }
+    }
+
+    // Bullet shooting (only decide on shoot frame, not every frame)
+    if (ent.effects.bullet && ent.bulletAmmo > 0 && ent._commitTimer <= 0) {
+      if (threatDist < 250 && lineOfSight(ent.x, ent.y, threatX, threatY)) {
+        const len = threatDist || 1;
+        ent.facingX = (threatX - ent.x) / len;
+        ent.facingY = (threatY - ent.y) / len;
+        shootBullet(ent);
+      }
+    }
+  }
+
+  // Normalize
+  const len = Math.hypot(bestDx, bestDy);
+  if (len > 1) { bestDx /= len; bestDy /= len; }
+
+  // --- Obstacle avoidance: pick one clear direction and commit ---
+  const goalAngle = Math.atan2(bestDy, bestDx);
+  const lookDist = 60;
+
+  // Check at 3 distances: near, mid, and far (far catches lava early)
+  const blocked1 = pointBlocked(ent.x + bestDx * lookDist * 0.4, ent.y + bestDy * lookDist * 0.4, ent.r);
+  const blocked2 = pointBlocked(ent.x + bestDx * lookDist, ent.y + bestDy * lookDist, ent.r);
+  const blocked3 = !ent.effects.shield && pointBlocked(ent.x + bestDx * lookDist * 1.8, ent.y + bestDy * lookDist * 1.8, ent.r);
+
+  // For shielded entities, don't treat lava as blocked
+  function rayBlockedForAvoid(ax, ay) {
+    for (const o of obstacles) {
+      if (ax > o.x - ent.r && ax < o.x + o.w + ent.r && ay > o.y - ent.r && ay < o.y + o.h + ent.r) return true;
+    }
+    if (!ent.effects.shield) {
+      for (const lz of lavaZones) {
+        if (ax > lz.x - ent.r && ax < lz.x + lz.w + ent.r && ay > lz.y - ent.r && ay < lz.y + lz.h + ent.r) return true;
+      }
+    }
+    // Avoid meteor zones
+    if (meteorsEnabled && Math.random() < 0.97) {
+      for (const m of meteors) {
+        if (!m.hit && Math.hypot(ax - m.x, ay - m.y) < m.radius + ent.r) return true;
+      }
+    }
+    return ax < ent.r || ax > W - ent.r || ay < ent.r || ay > H - ent.r;
+  }
+
+  if (blocked1 || blocked2 || blocked3) {
+    if (!ent._avoidSign) ent._avoidSign = (ent.index % 2 === 0) ? 1 : -1;
+
+    // Only try the committed side first, don't alternate
+    let foundClear = false;
+    for (let spread = 1; spread <= 8; spread++) {
+      const tryAngle = goalAngle + ent._avoidSign * spread * (Math.PI / 8);
+      const tx = ent.x + Math.cos(tryAngle) * lookDist;
+      const ty = ent.y + Math.sin(tryAngle) * lookDist;
+      if (!rayBlockedForAvoid(tx, ty)) {
+        bestDx = Math.cos(tryAngle);
+        bestDy = Math.sin(tryAngle);
+        foundClear = true;
+        break;
+      }
+    }
+    // Only if the committed side is fully blocked, try the other side
+    if (!foundClear) {
+      ent._avoidSign = -ent._avoidSign;
+      for (let spread = 1; spread <= 8; spread++) {
+        const tryAngle = goalAngle + ent._avoidSign * spread * (Math.PI / 8);
+        const tx = ent.x + Math.cos(tryAngle) * lookDist;
+        const ty = ent.y + Math.sin(tryAngle) * lookDist;
+        if (!rayBlockedForAvoid(tx, ty)) {
+          bestDx = Math.cos(tryAngle);
+          bestDy = Math.sin(tryAngle);
+          foundClear = true;
+          break;
+        }
+      }
+    }
+    commitTime = Math.max(commitTime, 8); // commit longer when avoiding
+  }
+
+  // Store committed direction
+  ent._commitDx = bestDx;
+  ent._commitDy = bestDy;
+  ent._commitTimer = commitTime;
+
+  return { dx: bestDx, dy: bestDy };
+}
+
+function findOpenSpace() {
+  // Find a random open position not inside obstacles, entities, or orbs
+  for (let tries = 0; tries < 100; tries++) {
+    const x = 40 + Math.random() * (W - 80);
+    const y = 40 + Math.random() * (H - 80);
+    let clear = true;
+    // Check obstacles
+    for (const o of obstacles) {
+      if (x > o.x - 25 && x < o.x + o.w + 25 && y > o.y - 25 && y < o.y + o.h + 25) { clear = false; break; }
+    }
+    if (!clear) continue;
+    // Check entities
+    for (const ent of entities) {
+      if (Math.hypot(ent.x - x, ent.y - y) < 50) { clear = false; break; }
+    }
+    if (!clear) continue;
+    // Check orbs
+    for (const orb of orbs) {
+      if (Math.hypot(orb.x - x, orb.y - y) < 30) { clear = false; break; }
+    }
+    if (clear) return { x, y };
+  }
+  return { x: W / 2, y: H / 2 }; // fallback
+}
+
+function applyEffect(entity, orb) {
+  const e = orb.type.effect;
+  if (e === 'star') {
+    if (gameMode === 'infect') {
+      // Remove a random infected player from the game
+      const infectedOthers = entities.filter(x => x.infected && x !== entity);
+      if (infectedOthers.length > 0) {
+        const victim = infectedOthers[Math.floor(Math.random() * infectedOthers.length)];
+        showMessage(victim.name + ' removed!', 1200);
+        floatingTexts.push({ x: victim.x, y: victim.y - 20, text: 'REMOVED', color: '#ffee44', life: 1.2 });
+        removeEntity(victim);
+        // Check if no infected left — survivors win
+        if (!entities.some(e => e.infected)) { endGame(null, false); return; }
+      } else {
+        showMessage('No infected to remove!', 1000);
+      }
+    } else {
+      const bonus = Math.floor(Math.abs(entity.score) / 2);
+      entity.score += bonus;
+      showMessage('+' + bonus + ' Star!', 1200);
+      floatingTexts.push({ x: entity.x, y: entity.y - 20, text: '+' + bonus, color: '#ffee44', life: 1.2 });
+    }
+    burst(orb.x, orb.y, '#ffee44', 25);
+    return;
+  }
+  if (e === 'teleport') {
+    const pos = findOpenSpace();
+    entity.x = pos.x;
+    entity.y = pos.y;
+    entity.vx = 0;
+    entity.vy = 0;
+    entity.trail = [];
+    entity.effects.shield = 500;
+    showMessage('Teleport!', 1000);
+    burst(orb.x, orb.y, orb.type.color, 12);
+    burst(pos.x, pos.y, orb.type.color, 12);
+    return;
+  }
+  if (e === 'freeze') {
+    let nearest = null, nd = Infinity;
+    for (const other of entities) {
+      if (other === entity) continue;
+      const d = Math.hypot(other.x - entity.x, other.y - entity.y);
+      if (d < nd) { nd = d; nearest = other; }
+    }
+    if (nearest) nearest.effects.freeze = orb.type.duration;
+    showMessage('Frozen!', 1000);
+  } else if (e === 'bullet') {
+    entity.effects.bullet = orb.type.duration;
+    entity.bulletAmmo = BULLET_AMMO;
+    showMessage('Bullet x' + BULLET_AMMO + '!', 1000);
+  } else {
+    entity.effects[e] = orb.type.duration;
+    if (e === 'shield') showMessage('Shield!', 1000);
+    if (e === 'speed') showMessage('Speed Boost!', 1000);
+    if (e === 'double') showMessage('Score x2!', 1000);
+    if (e === 'shrink') showMessage('Shrink!', 1000);
+  }
+}
+
+function removeEntity(ent) {
+  const idx = entities.indexOf(ent);
+  if (idx === -1) return;
+  burst(ent.x, ent.y, ent.color, 20);
+  // Track who is currently IT before removal
+  const currentIt = entities[itIndex];
+  entities.splice(idx, 1);
+  for (let j = 0; j < entities.length; j++) entities[j].index = j;
+  if (entities.length === 0) { itIndex = 0; return; }
+  // Restore itIndex to the same entity if they still exist
+  if (currentIt && currentIt !== ent && entities.includes(currentIt)) {
+    itIndex = entities.indexOf(currentIt);
+  } else {
+    // The IT entity was removed — pick a new one
+    if (gameMode === 'infect') {
+      // Pick a random infected entity as new IT
+      const infected = entities.filter(e => e.infected);
+      if (infected.length > 0) {
+        itIndex = entities.indexOf(infected[Math.floor(Math.random() * infected.length)]);
+      } else {
+        itIndex = 0;
+      }
+    } else {
+      itIndex = Math.floor(Math.random() * entities.length);
+    }
+  }
+  buildHUD();
+}
+
+function endGame(elimWinner, infectAllTagged) {
+  gameRunning = false;
+
+  if (gameMode === 'infect') {
+    if (infectAllTagged) {
+      document.querySelector('#game-over-screen h1').textContent = 'IT Team Wins!';
+      finalScoresEl.innerHTML = '<div style="color:#ff4444;font-size:24px">Everyone has been infected!</div>';
+    } else {
+      const survivors = entities.filter(e => !e.infected);
+      if (survivors.length > 0) {
+        document.querySelector('#game-over-screen h1').textContent = 'Survivors Win!';
+        let html = '<div style="font-size:18px;margin-bottom:10px">Survivors:</div>';
+        for (const s of survivors) {
+          html += `<div style="color:${s.color};font-size:22px">${s.name}${s.isHuman ? '' : ' (AI)'}</div>`;
+        }
+        finalScoresEl.innerHTML = html;
+      } else {
+        document.querySelector('#game-over-screen h1').textContent = 'IT Team Wins!';
+        finalScoresEl.innerHTML = '<div style="color:#ff4444;font-size:24px">Everyone has been infected!</div>';
+      }
+    }
+  } else if (elimWinner) {
+    document.querySelector('#game-over-screen h1').textContent = elimWinner.name + ' Wins!';
+    finalScoresEl.innerHTML = `<div style="color:${elimWinner.color};font-size:28px">${elimWinner.name}${elimWinner.isHuman ? '' : ' (AI)'} is the last one standing!</div>`;
+  } else {
+    document.querySelector('#game-over-screen h1').textContent = "Time's Up!";
+    const itEnt = entities[itIndex];
+    const penalty = Math.floor(Math.abs(itEnt.score) * 0.25);
+    itEnt.score -= penalty;
+    const sorted = [...entities].sort((a, b) => b.score - a.score);
+    let html = '';
+    const medals = ['1st','2nd','3rd','4th','5th','6th','7th','8th'];
+    for (let i = 0; i < sorted.length; i++) {
+      const e = sorted[i];
+      const medal = ' [' + (medals[i] || (i+1)+'th') + ']';
+      const itPenalty = (e === itEnt) ? ` <span style="color:#ff4444;font-size:16px">(-${penalty} IT penalty)</span>` : '';
+      html += `<div style="color:${e.color}">${e.name}${e.isHuman ? '' : ' (AI)'}${medal}: ${Math.floor(e.score)} pts${itPenalty}</div>`;
+    }
+    finalScoresEl.innerHTML = html;
+  }
+  gameOverScreen.style.display = 'flex';
+}
+
+function backToMenu() {
+  gameOverScreen.style.display = 'none';
+  startScreen.style.display = 'flex';
+}
+
+function update() {
+  if (!gameRunning) return;
+
+  // Timer
+  if (gameMode === 'elimination') {
+    // Elimination countdown
+    elimTimer -= dt;
+    const secs = Math.max(0, Math.ceil(elimTimer / 1000));
+    timerDisplay.textContent = 'Elim: ' + secs + 's';
+    timerDisplay.style.color = secs <= 5 ? '#ff4444' : '#fff';
+    if (elimTimer <= 0) {
+      // Eliminate the current IT
+      const itEnt = entities[itIndex];
+      showMessage(itEnt.name + ' eliminated!', 1500);
+      burst(itEnt.x, itEnt.y, itEnt.color, 30);
+      entities.splice(itIndex, 1);
+      // Re-index
+      for (let i = 0; i < entities.length; i++) entities[i].index = i;
+      if (entities.length <= 1) {
+        endGame(entities[0] || null);
+        return;
+      }
+      // Pick new IT randomly
+      itIndex = Math.floor(Math.random() * entities.length);
+      entities[itIndex]._chasedList = [];
+      entities[itIndex]._chaseTarget = null;
+      entities[itIndex]._chaseTimer = 0;
+      tagCooldown = 1500;
+      elimTimer = elimRoundTime * 1000;
+      buildHUD();
+    }
+  } else if (gameTimer > 0) {
+    gameTimer -= dt;
+    const secs = Math.ceil(gameTimer / 1000);
+    const mins = Math.floor(secs / 60);
+    const s = secs % 60;
+    timerDisplay.textContent = mins + ':' + (s < 10 ? '0' : '') + s;
+    timerDisplay.style.color = secs <= 10 ? '#ff4444' : '#fff';
+    if (gameTimer <= 0) {
+      endGame();
+      return;
+    }
+  } else if (gameTimer === -1) {
+    elapsedTime += dt;
+    if (gameMode === 'infect') {
+      // Infect unlimited: show stopwatch counting up
+      const totalSecs = Math.floor(elapsedTime / 1000);
+      const mins = Math.floor(totalSecs / 60);
+      const s = totalSecs % 60;
+      timerDisplay.textContent = mins + ':' + (s < 10 ? '0' : '') + s;
+      timerDisplay.style.color = '#aaa';
+    } else {
+      // Classic unlimited: no timer display
+      timerDisplay.textContent = '';
+    }
+  }
+
+  // Move all entities
+  for (const ent of entities) {
+    // Decrement tag freeze timer
+    if (ent.tagFreezeTimer > 0) {
+      ent.tagFreezeTimer -= dt;
+      continue; // Can't move while tag-frozen
+    }
+
+
+    // Decrement bullet cooldown
+    if (ent.bulletCooldown > 0) ent.bulletCooldown -= dt;
+    // Decrement dash cooldown and immunity
+    if (ent.dashCooldown > 0) ent.dashCooldown -= dt;
+    if (ent.dashImmune > 0) ent.dashImmune -= dt;
+
+    let input;
+    if (ent.isHuman) {
+      input = getHumanInput(ent);
+    } else {
+      input = getAIInput(ent);
+      // Smooth AI direction for fluid movement
+      if (!ent._smoothDx) { ent._smoothDx = 0; ent._smoothDy = 0; }
+      // IT AI reacts faster
+      const baseFactor = (entities[itIndex] === ent) ? 0.3 : 0.15;
+      const smoothFactor = Math.min(baseFactor * (dt / 16.67), 0.6);
+      ent._smoothDx += (input.dx - ent._smoothDx) * smoothFactor;
+      ent._smoothDy += (input.dy - ent._smoothDy) * smoothFactor;
+      // Preserve input magnitude so AI speed matches the slider value
+      const smoothLen = Math.hypot(ent._smoothDx, ent._smoothDy);
+      const inputLen = Math.hypot(input.dx, input.dy);
+      if (smoothLen > 0.01 && inputLen > 0.01) {
+        input = { dx: (ent._smoothDx / smoothLen) * inputLen, dy: (ent._smoothDy / smoothLen) * inputLen };
+      } else {
+        input = { dx: ent._smoothDx, dy: ent._smoothDy };
+      }
+    }
+    if (!ent.effects.freeze && ent.tagFreezeTimer <= 0) {
+      moveEntity(ent, input.dx, input.dy);
+    }
+  }
+
+  // Shrink tunnel time bonus: +3.5s on enter, -3.5s on exit
+  for (const ent of entities) {
+    if (ent.effects.shrink) {
+      const inTunnel = isInsideTunnel(ent);
+      if (inTunnel && !ent.wasInTunnel) {
+        ent.effects.shrink += 3500; // entered tunnel
+      } else if (!inTunnel && ent.wasInTunnel) {
+        ent.effects.shrink = Math.max(100, ent.effects.shrink - 3500); // left tunnel
+      }
+      ent.wasInTunnel = inTunnel;
+    } else {
+      ent.wasInTunnel = false;
+    }
+  }
+
+  // Decay effects
+  for (const ent of entities) {
+    for (const key in ent.effects) {
+      ent.effects[key] -= dt;
+      if (ent.effects[key] <= 0) {
+        // If shrink just expired, check if inside a tunnel and push out
+        if (key === 'shrink' && isInsideTunnel(ent)) {
+          pushOutOfTunnel(ent);
+          burst(ent.x, ent.y, '#ff8800', 10);
+        }
+        delete ent.effects[key];
+      }
+    }
+  }
+
+  // Tag checks
+  if (tagCooldown > 0) tagCooldown -= dt;
+  const itEnt = entities[itIndex];
+  if (gameMode === 'infect') {
+    // Infect mode: any infected entity can tag non-infected
+    if (tagCooldown <= 0) {
+      for (const tagger of entities) {
+        if (!tagger.infected || tagger.tagFreezeTimer > 0 || tagger._portalHidden) continue;
+        for (const other of entities) {
+          if (other.infected || other._portalHidden) continue;
+          if (other.effects.shield || other.dashImmune > 0) continue;
+          const d = Math.hypot(tagger.x - other.x, tagger.y - other.y);
+          if (d < tagger.r + other.r) {
+            other.infected = true;
+            other.tagFreezeTimer = 1000;
+            tagCooldown = 500;
+            burst(other.x, other.y, '#ff4444', 25);
+            showMessage(`${tagger.name} infected ${other.name}!`, 1200);
+            // Check if all are infected
+            const survivors = entities.filter(e => !e.infected);
+            if (survivors.length === 0) {
+              endGame(null, true); // IT team wins
+              return;
+            }
+            break;
+          }
+        }
+      }
+    }
+  } else {
+    if (tagCooldown <= 0 && itEnt.tagFreezeTimer <= 0) {
+      for (const other of entities) {
+        if (other === itEnt) continue;
+        if (other._portalHidden || itEnt._portalHidden) continue;
+        const d = Math.hypot(itEnt.x - other.x, itEnt.y - other.y);
+        if (d < itEnt.r + other.r) {
+          if (!other.effects.shield && other.dashImmune <= 0) {
+            if (gameMode !== 'elimination') itEnt.score += 50;
+            burst(other.x, other.y, other.color, 25);
+            const oldName = itEnt.name;
+            const newName = other.name;
+            itIndex = entities.indexOf(other);
+            other.itCount++;
+            other._chasedList = [];
+            other._chaseTarget = null;
+            other._chaseTimer = 0;
+            other.tagFreezeTimer = 1000;
+            tagCooldown = 1000;
+            showMessage(`${oldName} tagged ${newName}!`, 1200);
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  // Score — runners earn points (classic mode only)
+  if (gameMode === 'classic') {
+    for (const ent of entities) {
+      if (entities[itIndex] !== ent) {
+        const base = 0.5 * (dt / 16.67);
+        ent.score += ent.effects.double ? base * 2 : base;
+      }
+    }
+  }
+
+  // Bullet updates
+  for (let i = bullets.length - 1; i >= 0; i--) {
+    const b = bullets[i];
+    const bScale = dt / 16.67;
+
+    // Slight homing: curve toward nearest non-owner entity when close
+    let nearestTarget = null, nearDist = 220; // home within 220px
+    for (const ent of entities) {
+      if (ent.index === b.owner) continue;
+      const d = Math.hypot(ent.x - b.x, ent.y - b.y);
+      if (d < nearDist) { nearDist = d; nearestTarget = ent; }
+    }
+    if (nearestTarget) {
+      const toX = nearestTarget.x - b.x;
+      const toY = nearestTarget.y - b.y;
+      const toLen = Math.hypot(toX, toY) || 1;
+      // Gentle nudge: 3% of direction toward target per frame
+      const homingStr = 0.05 * bScale;
+      b.vx += (toX / toLen) * BULLET_SPEED * homingStr;
+      b.vy += (toY / toLen) * BULLET_SPEED * homingStr;
+      // Re-normalize to keep original bullet speed
+      const newSpeed = Math.hypot(b.vx, b.vy);
+      b.vx = (b.vx / newSpeed) * BULLET_SPEED;
+      b.vy = (b.vy / newSpeed) * BULLET_SPEED;
+    }
+
+    b.x += b.vx * bScale;
+    b.y += b.vy * bScale;
+    b.life -= bScale;
+
+    // Wall collision
+    if (b.x < 0 || b.x > W || b.y < 0 || b.y > H) {
+      bullets.splice(i, 1);
+      continue;
+    }
+
+    // Obstacle collision
+    let hitObstacle = false;
+    for (const o of obstacles) {
+      if (bulletHitsRect(b.x, b.y, BULLET_RADIUS, o.x, o.y, o.w, o.h)) {
+        hitObstacle = true;
+        break;
+      }
+    }
+    if (hitObstacle) {
+      burst(b.x, b.y, b.color, 8);
+      bullets.splice(i, 1);
+      continue;
+    }
+
+    // Entity collision
+    let hitEntity = false;
+    const shooter = entities.find(e => e.index === b.owner);
+    for (const ent of entities) {
+      if (ent.index === b.owner) continue;
+      const d = Math.hypot(ent.x - b.x, ent.y - b.y);
+      if (d < ent.r + BULLET_RADIUS) {
+        if (gameMode === 'infect') {
+          // Infect mode bullet rules
+          const shooterInfected = shooter && shooter.infected;
+          const targetInfected = ent.infected;
+          if (shooterInfected && targetInfected) {
+            // IT teammates hit each other — nothing happens, bullet passes through
+            continue;
+          }
+          if (!shooterInfected && !targetInfected) {
+            // Survivor hits survivor — shield
+            ent.effects.shield = 6500;
+            burst(ent.x, ent.y, '#ff00ff', 15);
+            showMessage('Shield Given!', 800);
+          } else if (shooterInfected && !targetInfected) {
+            // Infected shoots survivor — infect them
+            if (ent.effects.shield) {
+              burst(ent.x, ent.y, '#ff00ff', 10);
+            } else {
+              ent.infected = true;
+              ent.tagFreezeTimer = 1000;
+              burst(ent.x, ent.y, '#ff4444', 15);
+              showMessage(ent.name + ' infected!', 1200);
+              const survivors = entities.filter(e => !e.infected);
+              if (survivors.length === 0) { endGame(null, true); return; }
+            }
+          } else if (!shooterInfected && targetInfected) {
+            // Survivor shoots infected — freeze them
+            if (ent.effects.shield) {
+              burst(ent.x, ent.y, '#ff00ff', 10);
+            } else {
+              ent.effects.freeze = 3500;
+              burst(ent.x, ent.y, '#00d4ff', 15);
+              showMessage('IT Frozen!', 800);
+            }
+          }
+        } else {
+          // Classic/Elimination bullet rules
+          if (ent.effects.shield) {
+            burst(ent.x, ent.y, '#ff00ff', 10);
+          } else {
+            const shooterIsIt = shooter && entities[itIndex] === shooter;
+            const targetIsIt = entities[itIndex] === ent;
+            if (shooterIsIt && !targetIsIt) {
+              // IT shoots non-IT → transfer IT
+              itIndex = entities.indexOf(ent);
+              ent.itCount++;
+              ent._chasedList = [];
+              ent._chaseTarget = null;
+              ent._chaseTimer = 0;
+              ent.tagFreezeTimer = 1000;
+              tagCooldown = 1000;
+              burst(ent.x, ent.y, '#ff4444', 15);
+              showMessage(ent.name + ' is now IT!', 1200);
+            } else if (!shooterIsIt && targetIsIt) {
+              // Non-IT shoots IT → freeze IT
+              ent.effects.freeze = 3500;
+              burst(ent.x, ent.y, '#00d4ff', 15);
+              showMessage('IT Frozen!', 800);
+            } else if (!shooterIsIt && !targetIsIt) {
+              // Non-IT shoots non-IT → shield
+              ent.effects.shield = 6500;
+              burst(ent.x, ent.y, '#ff00ff', 15);
+              showMessage('Shield Given!', 800);
+            } else {
+              // IT shoots IT (shouldn't happen in classic) — nothing
+              continue;
+            }
+          }
+        }
+        hitEntity = true;
+        break;
+      }
+    }
+    if (hitEntity || b.life <= 0) {
+      bullets.splice(i, 1);
+      continue;
+    }
+  }
+
+  // Orb collection
+  for (let i = orbs.length - 1; i >= 0; i--) {
+    const orb = orbs[i];
+    orb.age += dt / 16.67;
+    orb.pulse += 0.05;
+    let collected = false;
+    for (const ent of entities) {
+      if (ent.tagFreezeTimer > 0) continue;
+      const d = Math.hypot(ent.x - orb.x, ent.y - orb.y);
+      const pickupR = ent.isHuman ? ent.r + orb.r : ent.r + orb.r * 0.6;
+      if (d < pickupR) {
+        applyEffect(ent, orb);
+        burst(orb.x, orb.y, orb.type.color, 20);
+        collected = true;
+        break;
+      }
+    }
+    if (collected || orb.age > 1200) orbs.splice(i, 1);
+  }
+
+  // Base 3 orbs/min + 1 per player, at ~60fps (but running ~120fps so halved)
+  const orbsPerMin = 3 + entities.length;
+  // Scale spawn chance by dt so it's framerate-independent
+  const orbChance = orbsPerMin / 60 * (dt / 1000);
+  if (Math.random() < orbChance) spawnOrb();
+
+  // Star spawn — separate timer, not part of normal orb pool
+  if (starTimer > 0) {
+    starTimer -= dt;
+    if (starTimer <= 0) {
+      const starType = ORB_TYPES.find(t => t.effect === 'star');
+      if (starType && starType.enabled && gameMode !== 'elimination') {
+        // Try to place the star
+        for (let tries = 0; tries < 50; tries++) {
+          const x = 60 + Math.random() * (W - 120);
+          const y = 60 + Math.random() * (H - 120);
+          let blocked = false;
+          for (const o of obstacles) {
+            if (x > o.x - 20 && x < o.x + o.w + 20 && y > o.y - 20 && y < o.y + o.h + 20) { blocked = true; break; }
+          }
+          if (!blocked) {
+            for (const lz of lavaZones) {
+              if (x > lz.x - 20 && x < lz.x + lz.w + 20 && y > lz.y - 20 && y < lz.y + lz.h + 20) { blocked = true; break; }
+            }
+          }
+          if (!blocked) {
+            orbs.push({ x, y, r: 16, type: starType, age: 0, pulse: 0 });
+            showMessage('Star appeared!', 1200);
+            break;
+          }
+        }
+      }
+      // Reset: every 2 min, or every 1 min in 1-min rounds
+      starTimer = (timeLimit === 60) ? 60000 : 120000;
+    }
+  }
+
+  // Portal spawning — a pair every 1.5 minutes
+  portalTimer -= dt;
+  if (portalTimer <= 0) {
+    // 90s base, -10s per player beyond 2 (min 30s)
+    portalTimer = Math.max(30000, 90000 - (entities.length - 2) * 10000);
+    const portalR = 15;
+    let p1 = null, p2 = null;
+    // Find two open spots far from each other
+    for (let tries = 0; tries < 80; tries++) {
+      const x = 80 + Math.random() * (W - 160);
+      const y = 80 + Math.random() * (H - 160);
+      let clear = true;
+      // Check obstacles
+      for (const o of obstacles) {
+        if (x > o.x - 40 && x < o.x + o.w + 40 && y > o.y - 40 && y < o.y + o.h + 40) { clear = false; break; }
+      }
+      if (!clear) continue;
+      // Check lava
+      for (const lz of lavaZones) {
+        if (x > lz.x - 40 && x < lz.x + lz.w + 40 && y > lz.y - 40 && y < lz.y + lz.h + 40) { clear = false; break; }
+      }
+      if (!clear) continue;
+      // Check entities
+      for (const ent of entities) {
+        if (Math.hypot(ent.x - x, ent.y - y) < 60) { clear = false; break; }
+      }
+      if (!clear) continue;
+      // Check other portals
+      for (const pp of portals) {
+        if (Math.hypot(pp.x - x, pp.y - y) < 80) { clear = false; break; }
+      }
+      if (!clear) continue;
+      // Check tunnels
+      for (const t of tunnels) {
+        if (Math.hypot(t.cx - x, t.cy - y) < 100) { clear = false; break; }
+      }
+      if (!clear) continue;
+
+      if (!p1) {
+        p1 = { x, y };
+      } else if (Math.abs(x - p1.x) > W * 0.6) {
+        p2 = { x, y };
+        break;
+      }
+    }
+    if (p1 && p2) {
+      const pairId = Date.now();
+      portals.push({ x: p1.x, y: p1.y, r: portalR, pairId, otherId: 1, pulse: 0, occupant: null, teleTimer: 0 });
+      portals.push({ x: p2.x, y: p2.y, r: portalR, pairId, otherId: 0, pulse: Math.PI, occupant: null, teleTimer: 0 });
+      showMessage('Portals opened!', 1200);
+    }
+  }
+
+  // Portal logic — player travels as a trail, portals disappear after use
+  for (const p of portals) {
+    p.pulse += 0.04 * (dt / 16.67);
+    if (p.used) continue; // already used, waiting for removal
+  }
+
+  // Check portal entry (only on unused portals)
+  for (const p of portals) {
+    if (p.used || p.occupant !== null) continue;
+    for (const ent of entities) {
+      if (ent.tagFreezeTimer > 0 || ent._portalTravel) continue;
+      const d = Math.hypot(ent.x - p.x, ent.y - p.y);
+      if (d < p.r + ent.r * 0.5) {
+        const other = portals.find(pp => pp.pairId === p.pairId && pp !== p);
+        if (other && !other.used) {
+          // Start traveling
+          ent._portalTravel = {
+            startX: ent.x, startY: ent.y,
+            endX: other.x, endY: other.y,
+            timer: 1500, total: 1500,
+            color: ent.color
+          };
+          ent._portalHidden = true;
+          ent.vx = 0; ent.vy = 0;
+          burst(p.x, p.y, '#9944ff', 12);
+          // Mark both portals as used
+          p.used = true;
+          other.used = true;
+          break;
+        }
+      }
+    }
+  }
+
+  // Update traveling entities
+  for (const ent of entities) {
+    if (!ent._portalTravel) continue;
+    ent._portalTravel.timer -= dt;
+    const t = ent._portalTravel;
+    const progress = 1 - (t.timer / t.total);
+    // Move entity along the path (hidden, but position updates for trail)
+    ent.x = t.startX + (t.endX - t.startX) * progress;
+    ent.y = t.startY + (t.endY - t.startY) * progress;
+
+    if (t.timer <= 0) {
+      // Arrived
+      ent.x = t.endX;
+      ent.y = t.endY;
+      ent.vx = 0; ent.vy = 0;
+      ent.trail = [];
+      ent._portalTravel = null;
+      ent._portalHidden = false;
+      burst(ent.x, ent.y, '#9944ff', 15);
+      floatingTexts.push({ x: ent.x, y: ent.y - 20, text: 'ARRIVED', color: '#9944ff', life: 1.0 });
+    }
+  }
+
+  // Remove used portal pairs after both are used
+  for (let i = portals.length - 1; i >= 0; i--) {
+    if (portals[i].used) {
+      // Check if the traveling entity has arrived
+      const hasActiveTraveler = entities.some(e => e._portalTravel && e._portalTravel.endX !== undefined);
+      if (!hasActiveTraveler) {
+        portals.splice(i, 1);
+      }
+    }
+  }
+
+  // Lava damage — 500 score per second, first tick instant on contact
+  for (const ent of entities) {
+    // Check if entity is on lava
+    let inLava = false;
+    // Shrink tunnels and shield protect from lava
+    if (!isInsideTunnel(ent) && !ent.effects.shield) {
+      for (const lz of lavaZones) {
+        if (ent.x > lz.x && ent.x < lz.x + lz.w && ent.y > lz.y && ent.y < lz.y + lz.h) {
+          inLava = true; break;
+        }
+      }
+    }
+
+    if (inLava) {
+      function applyLavaDamage(ent) {
+        ent.score -= 500;
+        floatingTexts.push({ x: ent.x, y: ent.y - 20, text: '-500', color: '#ff4444', life: 1.0 });
+      }
+      if (!ent.onLava) {
+        ent.onLava = true;
+        ent.lavaTimer = 0;
+        applyLavaDamage(ent);
+      } else {
+        ent.lavaTimer += dt;
+        if (ent.lavaTimer >= 1000) {
+          ent.lavaTimer -= 1000;
+          applyLavaDamage(ent);
+        }
+      }
+    } else {
+      ent.onLava = false;
+      ent.lavaTimer = 0;
+    }
+  }
+
+  // Meteors
+  if (meteorsEnabled) {
+    meteorTimer -= dt;
+    if (meteorTimer <= 0) {
+      // Spawn a new meteor targeting a random player
+      const target = entities[Math.floor(Math.random() * entities.length)];
+      // Size: between 1/12 and 1/3 of map (use shorter dimension)
+      const minSize = Math.min(W, H) / 16;
+      const maxSize = Math.min(W, H) / 2.5;
+      const radius = minSize + Math.random() * (maxSize - minSize);
+      // Bigger meteors get longer warnings (2.25-3.75 seconds, 25% less than before)
+      const warningTime = 1350 + ((radius - minSize) / (maxSize - minSize)) * 900;
+      // Target near the player with some offset
+      const offsetX = (Math.random() - 0.5) * radius * 0.5;
+      const offsetY = (Math.random() - 0.5) * radius * 0.5;
+      const mx = target.x + offsetX;
+      const my = target.y + offsetY;
+      meteors.push({
+        x: mx, y: my, radius,
+        warningTime, timer: warningTime,
+        hit: false
+      });
+      // 6 meteors/min for 4 players, +2 per extra player
+      const meteorsPerMin = 6 + Math.max(0, entities.length - 4) * 2;
+      meteorTimer = 60000 / meteorsPerMin;
+    }
+
+    for (let i = meteors.length - 1; i >= 0; i--) {
+      const m = meteors[i];
+      m.timer -= dt;
+
+      if (m.timer <= 0 && !m.hit) {
+        // IMPACT
+        m.hit = true;
+        if (gameMode === 'infect') {
+          // Infect mode: survivors get infected, IT players get REMOVED
+          const infectHitSurvivors = [];
+          const infectHitIT = [];
+          for (const ent of entities) {
+            const d = Math.hypot(ent.x - m.x, ent.y - m.y);
+            if (d < m.radius) {
+              if (ent.effects.shield) {
+                burst(ent.x, ent.y, '#ff00ff', 10);
+                floatingTexts.push({ x: ent.x, y: ent.y - 20, text: 'SHIELDED', color: '#ff00ff', life: 1.0 });
+                continue;
+              }
+              if (ent.infected) {
+                infectHitIT.push(ent);
+              } else {
+                infectHitSurvivors.push(ent);
+              }
+            }
+          }
+          // Infect survivors
+          for (const ent of infectHitSurvivors) {
+            ent.infected = true;
+            burst(ent.x, ent.y, '#ff4444', 15);
+            floatingTexts.push({ x: ent.x, y: ent.y - 20, text: 'INFECTED', color: '#ff4444', life: 1.2 });
+            showMessage(ent.name + ' infected by meteor!', 1200);
+          }
+          // Remove IT players
+          for (const ent of infectHitIT) {
+            floatingTexts.push({ x: ent.x, y: ent.y - 20, text: 'REMOVED', color: '#ff6600', life: 1.2 });
+            showMessage(ent.name + ' destroyed!', 1200);
+            removeEntity(ent);
+          }
+          // Check win conditions
+          if (!entities.some(e => e.infected)) { endGame(null, false); return; }
+          const survivors = entities.filter(e => !e.infected);
+          if (survivors.length === 0) { endGame(null, true); return; }
+        } else if (gameMode === 'elimination') {
+          // Elimination: kill hit players
+          const hitList = [];
+          for (const ent of entities) {
+            const d = Math.hypot(ent.x - m.x, ent.y - m.y);
+            if (d < m.radius) {
+              if (ent.effects.shield) {
+                burst(ent.x, ent.y, '#ff00ff', 10);
+                floatingTexts.push({ x: ent.x, y: ent.y - 20, text: 'SHIELDED', color: '#ff00ff', life: 1.0 });
+                continue;
+              }
+              hitList.push(ent);
+              burst(ent.x, ent.y, '#ff6600', 15);
+              floatingTexts.push({ x: ent.x, y: ent.y - 20, text: 'ELIMINATED', color: '#ff4400', life: 1.5 });
+            }
+          }
+          for (const ent of hitList) {
+            if (entities.length <= 1) break;
+            showMessage(ent.name + ' destroyed!', 1200);
+            const idx = entities.indexOf(ent);
+            if (idx === -1) continue;
+            entities.splice(idx, 1);
+            for (let j = 0; j < entities.length; j++) entities[j].index = j;
+            if (itIndex >= entities.length) itIndex = 0;
+            if (entities.length <= 1) {
+              endGame(entities[0] || null);
+              return;
+            }
+          }
+          if (hitList.length > 0) buildHUD();
+        } else {
+          // Classic: lose 50% score (everyone including IT)
+          for (const ent of entities) {
+            const d = Math.hypot(ent.x - m.x, ent.y - m.y);
+            if (d < m.radius) {
+              if (ent.effects.shield) {
+                burst(ent.x, ent.y, '#ff00ff', 10);
+                floatingTexts.push({ x: ent.x, y: ent.y - 20, text: 'SHIELDED', color: '#ff00ff', life: 1.0 });
+                continue;
+              }
+              burst(ent.x, ent.y, '#ff6600', 15);
+              if (ent.score < 0) {
+                // Negative score: double the debt
+                const penalty = Math.floor(Math.abs(ent.score));
+                ent.score -= penalty; // e.g. -200 becomes -400
+                floatingTexts.push({ x: ent.x, y: ent.y - 20, text: '-' + penalty, color: '#ff6600', life: 1.0 });
+              } else {
+                const lost = Math.floor(ent.score * 0.5);
+                ent.score -= lost;
+                floatingTexts.push({ x: ent.x, y: ent.y - 20, text: lost > 0 ? '-' + lost : '-0', color: '#ff6600', life: 1.0 });
+              }
+            }
+          }
+        }
+        // Impact particles
+        burst(m.x, m.y, '#ff4400', 30);
+        burst(m.x, m.y, '#ffaa00', 20);
+      }
+
+      // Remove after impact animation (500ms after hit)
+      if (m.hit && m.timer < -500) {
+        meteors.splice(i, 1);
+      }
+    }
+  }
+
+  // Floating texts
+  for (let i = floatingTexts.length - 1; i >= 0; i--) {
+    const ft = floatingTexts[i];
+    const ftScale = dt / 16.67;
+    ft.y -= 0.8 * ftScale;
+    ft.life -= 0.015 * ftScale;
+    if (ft.life <= 0) floatingTexts.splice(i, 1);
+  }
+
+  // Particles
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    const pScale = dt / 16.67;
+    p.x += p.vx * pScale; p.y += p.vy * pScale;
+    p.vx *= Math.pow(0.96, pScale); p.vy *= Math.pow(0.96, pScale);
+    p.life -= 0.025 * pScale;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+
+  // Update HUD — sorted by score (left = highest)
+  const sorted = [...entities].sort((a, b) => b.score - a.score);
+  for (let rank = 0; rank < entities.length; rank++) {
+    const ent = sorted[rank];
+    const i = ent.index;
+    const hud = document.getElementById('hud-' + i);
+    if (!hud) continue;
+    const isIt = entities[itIndex] === ent;
+    hud.classList.toggle('is-it', isIt);
+    hud.style.order = rank; // CSS order for left-to-right ranking
+
+    // Name with rank
+    const rankLabel = '#' + (rank + 1);
+    const crown = rank === 0 && gameMode !== 'elimination' ? ' \u{1F451}' : '';
+    document.getElementById('hud-name-' + i).innerHTML =
+      `<span style="color:${ent.color}">${rankLabel} ${ent.name}${ent.isHuman ? '' : ' (AI)'}${crown}</span>`;
+
+    if (gameMode === 'elimination') {
+      document.getElementById('hud-score-' + i).textContent =
+        (isIt ? 'IT' : 'Safe') + ' | ' + entities.length + ' left';
+    } else if (gameMode === 'infect') {
+      const survivors = entities.filter(e => !e.infected).length;
+      document.getElementById('hud-score-' + i).textContent =
+        (ent.infected ? 'INFECTED' : 'Survivor') + ' | ' + survivors + ' alive';
+    } else {
+      document.getElementById('hud-score-' + i).textContent =
+        (isIt ? 'IT | ' : '') + Math.floor(ent.score) + ' pts';
+    }
+
+    const active = Object.keys(ent.effects);
+    let fxText = active.length
+      ? active.map(e => {
+          if (e === 'bullet') return 'Bullet x' + ent.bulletAmmo;
+          const name = e.charAt(0).toUpperCase() + e.slice(1);
+          return name + ' ' + (ent.effects[e]/1000).toFixed(1) + 's';
+        }).join(' | ')
+      : '';
+    if (ent.tagFreezeTimer > 0) fxText = 'TAGGED! ' + (ent.tagFreezeTimer/1000).toFixed(1) + 's';
+    if (dashEnabled && ent.dashCooldown > 0) {
+      fxText += (fxText ? ' | ' : '') + 'Dash ' + (ent.dashCooldown/1000).toFixed(1) + 's';
+    } else if (dashEnabled && !ent.effects.bullet) {
+      fxText += (fxText ? ' | ' : '') + 'Dash READY';
+    }
+    document.getElementById('hud-fx-' + i).textContent = fxText;
+  }
+}
+
+function draw() {
+  ctx.fillStyle = '#1a1a2e';
+  ctx.fillRect(0, 0, W, H);
+  if (!gameRunning) return;
+
+  // Grid
+  ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+  ctx.lineWidth = 1;
+  for (let x = 0; x < W; x += 50) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+  for (let y = 0; y < H; y += 50) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+
+  // Lava zones — lightweight rendering (no gradients per frame)
+  for (const lz of lavaZones) {
+    lz.pulse += 0.015;
+    const t = lz.pulse;
+
+    // Dark base
+    ctx.fillStyle = '#2a0800';
+    ctx.fillRect(lz.x, lz.y, lz.w, lz.h);
+
+    // Bright molten fill with pulsing opacity
+    ctx.fillStyle = `rgba(160, 30, 0, ${0.5 + Math.sin(t) * 0.1})`;
+    ctx.fillRect(lz.x, lz.y, lz.w, lz.h);
+
+    // 3 flowing lava rivers (simple lines, no per-pixel steps)
+    for (let r = 0; r < 3; r++) {
+      ctx.beginPath();
+      ctx.lineWidth = 3;
+      const yBase = lz.y + (r + 1) * lz.h / 4;
+      ctx.moveTo(lz.x, yBase + Math.sin(t + r) * 8);
+      // Use fewer points (every 20px instead of 8px)
+      for (let sx = 0; sx <= lz.w; sx += 20) {
+        const sy = yBase + Math.sin(t * 0.6 + sx * 0.03 + r * 2.3) * 10;
+        ctx.lineTo(lz.x + sx, sy);
+      }
+      ctx.strokeStyle = `rgba(255, ${90 + r * 20}, 0, 0.35)`;
+      ctx.stroke();
+    }
+
+    // 3 hot spots (simple filled circles, no gradients)
+    for (let p = 0; p < 3; p++) {
+      const px = lz.x + ((Math.sin(t * 0.3 + p * 2.1) + 1) / 2) * lz.w;
+      const py = lz.y + ((Math.cos(t * 0.25 + p * 2.7) + 1) / 2) * lz.h;
+      const pr = 8 + Math.sin(t * 0.7 + p) * 4;
+      ctx.globalAlpha = 0.4 + Math.sin(t + p) * 0.15;
+      ctx.fillStyle = '#ff8020';
+      ctx.beginPath(); ctx.arc(px, py, pr, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#ffcc44';
+      ctx.beginPath(); ctx.arc(px, py, pr * 0.4, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
+    // 2 dark crust patches
+    for (let c = 0; c < 2; c++) {
+      const cx2 = lz.x + ((Math.sin(t * 0.15 + c * 2.5) + 1) / 2) * (lz.w - 20) + 10;
+      const cy2 = lz.y + ((Math.cos(t * 0.12 + c * 3.1) + 1) / 2) * (lz.h - 20) + 10;
+      ctx.fillStyle = 'rgba(30, 8, 0, 0.5)';
+      ctx.beginPath(); ctx.arc(cx2, cy2, 8, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // Border
+    ctx.strokeStyle = 'rgba(255, 60, 0, 0.45)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(lz.x, lz.y, lz.w, lz.h);
+    ctx.strokeStyle = 'rgba(255, 80, 0, 0.12)';
+    ctx.lineWidth = 6;
+    ctx.strokeRect(lz.x - 2, lz.y - 2, lz.w + 4, lz.h + 4);
+  }
+
+  // Meteor warnings and impacts
+  for (const m of meteors) {
+    const progress = 1 - (m.timer / m.warningTime); // 0 = just spawned, 1 = impact
+    if (!m.hit) {
+      // Warning circle — gets more opaque and solid as impact approaches
+      const pulseRate = 3 + progress * 8; // pulse faster near impact
+      const pulse = 0.5 + Math.sin(Date.now() / 1000 * pulseRate) * 0.3;
+      const alpha = 0.1 + progress * 0.35;
+
+      // Outer fill
+      ctx.fillStyle = `rgba(255, 30, 0, ${alpha * pulse * 0.5})`;
+      ctx.beginPath(); ctx.arc(m.x, m.y, m.radius, 0, Math.PI * 2); ctx.fill();
+
+      // Ring
+      ctx.strokeStyle = `rgba(255, 50, 0, ${0.3 + progress * 0.5})`;
+      ctx.lineWidth = 2 + progress * 3;
+      ctx.beginPath(); ctx.arc(m.x, m.y, m.radius, 0, Math.PI * 2); ctx.stroke();
+
+      // Inner ring closing in
+      const innerR = m.radius * (1 - progress);
+      if (innerR > 5) {
+        ctx.strokeStyle = `rgba(255, 100, 0, ${0.2 + progress * 0.4})`;
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([6, 6]);
+        ctx.beginPath(); ctx.arc(m.x, m.y, innerR, 0, Math.PI * 2); ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      // Crosshair
+      ctx.strokeStyle = `rgba(255, 80, 0, ${0.2 + progress * 0.3})`;
+      ctx.lineWidth = 1;
+      const cr = m.radius * 0.3;
+      ctx.beginPath(); ctx.moveTo(m.x - cr, m.y); ctx.lineTo(m.x + cr, m.y); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(m.x, m.y - cr); ctx.lineTo(m.x, m.y + cr); ctx.stroke();
+
+      // Timer text
+      const secsLeft = Math.max(0, m.timer / 1000).toFixed(1);
+      ctx.fillStyle = `rgba(255, 80, 0, ${0.5 + progress * 0.5})`;
+      ctx.font = 'bold 16px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(secsLeft + 's', m.x, m.y);
+    } else {
+      // Impact flash — fades out
+      const fadeProgress = Math.min(1, -m.timer / 500);
+      const flashAlpha = Math.max(0, 1 - fadeProgress);
+      ctx.fillStyle = `rgba(255, 100, 0, ${flashAlpha * 0.4})`;
+      ctx.beginPath(); ctx.arc(m.x, m.y, m.radius * (1 + fadeProgress * 0.3), 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = `rgba(255, 200, 50, ${flashAlpha * 0.6})`;
+      ctx.lineWidth = 4 * flashAlpha;
+      ctx.beginPath(); ctx.arc(m.x, m.y, m.radius * (0.5 + fadeProgress * 0.8), 0, Math.PI * 2); ctx.stroke();
+    }
+  }
+
+  // Obstacles
+  for (const o of obstacles) {
+    ctx.fillStyle = o.color;
+    ctx.fillRect(o.x, o.y, o.w, o.h);
+    ctx.strokeStyle = o.isTunnel ? 'rgba(255,180,50,0.2)' : 'rgba(255,255,255,0.08)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(o.x, o.y, o.w, o.h);
+  }
+
+  // Tunnel gap indicators and rounded entrances
+  for (const t of tunnels) {
+    const halfGap = t.gap / 2;
+    const entryR = halfGap; // rounded entrance radius matches gap
+
+    if (t.horizontal) {
+      const halfLen = t.walls[0].w / 2;
+      // Rounded entrance arcs at both ends
+      ctx.fillStyle = 'rgba(255,180,50,0.08)';
+      // Left entrance
+      ctx.beginPath();
+      ctx.arc(t.cx - halfLen, t.cy, entryR, -Math.PI/2, Math.PI/2);
+      ctx.fill();
+      // Right entrance
+      ctx.beginPath();
+      ctx.arc(t.cx + halfLen, t.cy, entryR, Math.PI/2, -Math.PI/2);
+      ctx.fill();
+      // Entrance outlines
+      ctx.strokeStyle = 'rgba(255,180,50,0.25)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(t.cx - halfLen, t.cy, entryR, -Math.PI/2, Math.PI/2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(t.cx + halfLen, t.cy, entryR, Math.PI/2, -Math.PI/2);
+      ctx.stroke();
+    } else {
+      const halfLen = t.walls[0].h / 2;
+      // Top entrance
+      ctx.fillStyle = 'rgba(255,180,50,0.08)';
+      ctx.beginPath();
+      ctx.arc(t.cx, t.cy - halfLen, entryR, Math.PI, 0);
+      ctx.fill();
+      // Bottom entrance
+      ctx.beginPath();
+      ctx.arc(t.cx, t.cy + halfLen, entryR, 0, Math.PI);
+      ctx.fill();
+      // Entrance outlines
+      ctx.strokeStyle = 'rgba(255,180,50,0.25)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(t.cx, t.cy - halfLen, entryR, Math.PI, 0);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(t.cx, t.cy + halfLen, entryR, 0, Math.PI);
+      ctx.stroke();
+    }
+
+    // Dashed center line
+    ctx.strokeStyle = 'rgba(255,180,50,0.2)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 6]);
+    if (t.horizontal) {
+      ctx.beginPath();
+      ctx.moveTo(t.cx - t.walls[0].w/2, t.cy);
+      ctx.lineTo(t.cx + t.walls[0].w/2, t.cy);
+      ctx.stroke();
+    } else {
+      ctx.beginPath();
+      ctx.moveTo(t.cx, t.cy - t.walls[0].h/2);
+      ctx.lineTo(t.cx, t.cy + t.walls[0].h/2);
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+
+    // "R" label
+    ctx.fillStyle = 'rgba(255,180,50,0.35)';
+    ctx.font = 'bold 10px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('R', t.cx, t.cy);
+  }
+
+  // Orbs
+  for (const orb of orbs) {
+    const pulse = 1 + Math.sin(orb.pulse) * 0.2;
+    const r = orb.r * pulse;
+    const grad = ctx.createRadialGradient(orb.x, orb.y, 0, orb.x, orb.y, r * 3);
+    grad.addColorStop(0, orb.type.color + '66');
+    grad.addColorStop(1, 'transparent');
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.arc(orb.x, orb.y, r*3, 0, Math.PI*2); ctx.fill();
+
+    if (orb.type.effect === 'star') {
+      // Draw starfish shape
+      const arms = 5;
+      const outerR = r * 1.2;
+      const innerR = r * 0.5;
+      const rot = orb.pulse * 0.5; // slow rotation
+      ctx.fillStyle = orb.type.color;
+      ctx.beginPath();
+      for (let i = 0; i < arms * 2; i++) {
+        const angle = rot + (i * Math.PI / arms) - Math.PI / 2;
+        const rad = i % 2 === 0 ? outerR : innerR;
+        const px = orb.x + Math.cos(angle) * rad;
+        const py = orb.y + Math.sin(angle) * rad;
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.fill();
+      // Inner highlight
+      ctx.fillStyle = '#fff';
+      ctx.globalAlpha = 0.4;
+      ctx.beginPath();
+      for (let i = 0; i < arms * 2; i++) {
+        const angle = rot + (i * Math.PI / arms) - Math.PI / 2;
+        const rad = (i % 2 === 0 ? outerR : innerR) * 0.5;
+        const px = orb.x + Math.cos(angle) * rad;
+        const py = orb.y + Math.sin(angle) * rad;
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    } else {
+      ctx.fillStyle = orb.type.color;
+      ctx.beginPath(); ctx.arc(orb.x, orb.y, r, 0, Math.PI*2); ctx.fill();
+      // Draw letter on orb
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold ' + Math.round(r * 1.3) + 'px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(orb.type.letter, orb.x, orb.y + 1);
+    }
+  }
+
+  // Portals
+  for (const p of portals) {
+    if (p.used) continue; // don't draw used portals
+    const t = p.pulse;
+    const occupied = false;
+
+    // Outer swirl ring
+    ctx.strokeStyle = occupied ? 'rgba(153, 68, 255, 0.6)' : 'rgba(153, 68, 255, 0.35)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r + 4 + Math.sin(t * 2) * 2, 0, Math.PI * 2); ctx.stroke();
+
+    // Inner spinning arcs
+    for (let a = 0; a < 3; a++) {
+      const angle = t * 1.5 + a * (Math.PI * 2 / 3);
+      ctx.strokeStyle = `rgba(180, 100, 255, ${0.4 + Math.sin(t + a) * 0.15})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r - 2, angle, angle + Math.PI * 0.5);
+      ctx.stroke();
+    }
+
+    // Center fill
+    ctx.fillStyle = occupied ? 'rgba(120, 50, 200, 0.5)' : 'rgba(80, 30, 160, 0.3)';
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r - 3, 0, Math.PI * 2); ctx.fill();
+
+    // Bright core
+    ctx.fillStyle = `rgba(200, 150, 255, ${0.3 + Math.sin(t * 3) * 0.15})`;
+    ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, Math.PI * 2); ctx.fill();
+
+  }
+
+  // Bullets
+  for (const b of bullets) {
+    // Glow
+    const grad = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, BULLET_RADIUS * 3);
+    grad.addColorStop(0, b.color + '88');
+    grad.addColorStop(1, 'transparent');
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.arc(b.x, b.y, BULLET_RADIUS * 3, 0, Math.PI*2); ctx.fill();
+    // Bullet
+    ctx.fillStyle = b.color;
+    ctx.beginPath(); ctx.arc(b.x, b.y, BULLET_RADIUS, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(b.x, b.y, BULLET_RADIUS * 0.4, 0, Math.PI*2); ctx.fill();
+  }
+
+  // Particles
+  for (const p of particles) {
+    ctx.globalAlpha = p.life;
+    ctx.fillStyle = p.color;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r * p.life, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  // Floating damage texts
+  for (const ft of floatingTexts) {
+    ctx.globalAlpha = ft.life;
+    ctx.fillStyle = ft.color;
+    ctx.font = 'bold 20px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(ft.text, ft.x, ft.y);
+  }
+  ctx.globalAlpha = 1;
+
+  // Draw portal travel trails (faint line from start to current position)
+  for (const ent of entities) {
+    if (!ent._portalTravel) continue;
+    const t = ent._portalTravel;
+    const progress = 1 - (t.timer / t.total);
+    // Draw faint dotted trail from start to current pos
+    const steps = 15;
+    for (let s = 0; s <= steps; s++) {
+      const sp = s / steps;
+      if (sp > progress) break;
+      const px = t.startX + (t.endX - t.startX) * sp;
+      const py = t.startY + (t.endY - t.startY) * sp;
+      ctx.globalAlpha = 0.15 + sp * 0.2;
+      ctx.fillStyle = ent.color;
+      ctx.beginPath(); ctx.arc(px, py, 4 + sp * 3, 0, Math.PI * 2); ctx.fill();
+    }
+    // Draw faint ghost at current position
+    ctx.globalAlpha = 0.3;
+    ctx.fillStyle = ent.color;
+    ctx.beginPath(); ctx.arc(ent.x, ent.y, ent.r * 0.8, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  // Find score leader for crown
+  let scoreLeader = null;
+  if (gameMode !== 'elimination' && entities.length > 0) {
+    scoreLeader = entities.reduce((a, b) => a.score > b.score ? a : b);
+    if (scoreLeader.score <= 0) scoreLeader = null;
+  }
+
+  // Draw entities
+  for (const ent of entities) {
+    if (ent._portalHidden) continue;
+    const isIt = itIndex === ent.index;
+
+    // Trail
+    for (let i = 0; i < ent.trail.length; i++) {
+      const t = ent.trail[i];
+      const a = i / ent.trail.length * 0.3;
+      ctx.globalAlpha = a;
+      ctx.fillStyle = ent.color;
+      ctx.beginPath(); ctx.arc(t.x, t.y, ent.r * 0.6, 0, Math.PI*2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    // Shield aura
+    if (ent.effects.shield) {
+      ctx.strokeStyle = '#ff00ff';
+      ctx.lineWidth = 3;
+      ctx.globalAlpha = 0.5 + Math.sin(Date.now()/100)*0.3;
+      ctx.beginPath(); ctx.arc(ent.x, ent.y, ent.r + 8, 0, Math.PI*2); ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+
+    // Freeze / tag-freeze indicator
+    if (ent.effects.freeze || ent.tagFreezeTimer > 0) {
+      ctx.fillStyle = ent.tagFreezeTimer > 0 ? 'rgba(255, 68, 68, 0.3)' : 'rgba(0, 212, 255, 0.3)';
+      ctx.beginPath(); ctx.arc(ent.x, ent.y, ent.r + 5, 0, Math.PI*2); ctx.fill();
+    }
+
+    // Bullet effect indicator
+    if (ent.effects.bullet) {
+      ctx.strokeStyle = '#88ff00';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 4]);
+      ctx.globalAlpha = 0.6 + Math.sin(Date.now()/150)*0.3;
+      ctx.beginPath(); ctx.arc(ent.x, ent.y, ent.r + 12, 0, Math.PI*2); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.globalAlpha = 1;
+
+      // Draw facing direction indicator
+      const fx = ent.facingX, fy = ent.facingY;
+      const flen = Math.hypot(fx, fy) || 1;
+      const tipX = ent.x + (fx/flen) * (ent.r + 16);
+      const tipY = ent.y + (fy/flen) * (ent.r + 16);
+      ctx.strokeStyle = '#88ff00';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(ent.x + (fx/flen) * ent.r, ent.y + (fy/flen) * ent.r);
+      ctx.lineTo(tipX, tipY);
+      ctx.stroke();
+      // Arrowhead
+      const arrowSize = 6;
+      const aAngle = Math.atan2(fy, fx);
+      ctx.beginPath();
+      ctx.moveTo(tipX, tipY);
+      ctx.lineTo(tipX - Math.cos(aAngle - 0.5) * arrowSize, tipY - Math.sin(aAngle - 0.5) * arrowSize);
+      ctx.moveTo(tipX, tipY);
+      ctx.lineTo(tipX - Math.cos(aAngle + 0.5) * arrowSize, tipY - Math.sin(aAngle + 0.5) * arrowSize);
+      ctx.stroke();
+    }
+
+    // Glow
+    const glow = ctx.createRadialGradient(ent.x, ent.y, 0, ent.x, ent.y, ent.r * 2.5);
+    glow.addColorStop(0, ent.color + '44');
+    glow.addColorStop(1, 'transparent');
+    ctx.fillStyle = glow;
+    ctx.beginPath(); ctx.arc(ent.x, ent.y, ent.r * 2.5, 0, Math.PI*2); ctx.fill();
+
+    // Body
+    const isInfected = gameMode === 'infect' && ent.infected;
+    ctx.fillStyle = (ent.tagFreezeTimer > 0) ? '#aa3333' : (isInfected ? '#dd2222' : ent.color);
+    ctx.beginPath(); ctx.arc(ent.x, ent.y, ent.r, 0, Math.PI*2); ctx.fill();
+
+    // Eyes — clamp offset so they stay on the face
+    const maxEyeOff = 3;
+    let ex = ent.vx * 2, ey = ent.vy * 2;
+    const eyeLen = Math.hypot(ex, ey);
+    if (eyeLen > maxEyeOff) { ex = (ex / eyeLen) * maxEyeOff; ey = (ey / eyeLen) * maxEyeOff; }
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(ent.x - 5 + ex, ent.y - 4 + ey, 4, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(ent.x + 5 + ex, ent.y - 4 + ey, 4, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#111';
+    const pex = ex * 1.3, pey = ey * 1.3;
+    const pupilLen = Math.hypot(pex, pey);
+    const mpx = pupilLen > maxEyeOff ? (pex / pupilLen) * maxEyeOff : pex;
+    const mpy = pupilLen > maxEyeOff ? (pey / pupilLen) * maxEyeOff : pey;
+    ctx.beginPath(); ctx.arc(ent.x - 5 + mpx, ent.y - 4 + mpy, 2, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(ent.x + 5 + mpx, ent.y - 4 + mpy, 2, 0, Math.PI*2); ctx.fill();
+
+    // IT arrow (triangular pointing down at the entity)
+    const showItArrow = isIt || (gameMode === 'infect' && ent.infected);
+    if (showItArrow) {
+      const arrowY = ent.y - ent.r - 22;
+      ctx.fillStyle = '#ff4444';
+      ctx.beginPath();
+      ctx.moveTo(ent.x, arrowY + 12);
+      ctx.lineTo(ent.x - 9, arrowY);
+      ctx.lineTo(ent.x + 9, arrowY);
+      ctx.closePath();
+      ctx.fill();
+      ctx.font = 'bold 12px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('IT', ent.x, arrowY - 5);
+    }
+
+    // Stack labels above entity
+    let aboveOffset = ent.r + 10;
+    const isLeader = scoreLeader === ent;
+
+    // IT arrow space
+    if (showItArrow) aboveOffset += 22;
+
+    // Crown on leading player
+    if (isLeader && gameMode !== 'elimination') {
+      ctx.fillStyle = '#ffd700';
+      ctx.font = '18px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('\u{1F451}', ent.x, ent.y - aboveOffset);
+      aboveOffset += 18;
+    }
+
+    // Score above character (classic mode)
+    if (gameMode !== 'elimination') {
+      ctx.fillStyle = 'rgba(255,255,255,0.6)';
+      ctx.font = 'bold 13px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(Math.floor(ent.score) + '', ent.x, ent.y - aboveOffset);
+    }
+
+    // Name label
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.font = '13px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(ent.name + (ent.isHuman ? '' : ' (AI)'), ent.x, ent.y + ent.r + 18);
+  }
+}
+
+let lastFrameTime = 0;
+let dt = 16; // delta time in ms
+
+function loop(timestamp) {
+  if (lastFrameTime) {
+    dt = Math.min(timestamp - lastFrameTime, 50); // cap at 50ms to avoid spiral
+  }
+  lastFrameTime = timestamp;
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+function startGame() {
+  startScreen.style.display = 'none';
+  init();
+  gameRunning = true;
+}
+
+// Defaults
+selectPlayers(1);
+selectTime(120);
+selectElimTime(30);
+rebuildAIButtons();
+buildOrbToggles();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
